@@ -10,8 +10,8 @@
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | Phase 0 | 项目初始化 | ✅ 已完成 |
-| Phase 1 | 业务分析与手工测试设计 | 🚧 进行中 |
-| Phase 2 | HTTP 与 Postman 接口测试 | ⬜ 未开始 |
+| Phase 1 | 业务分析与手工测试设计 | ✅ 已完成 |
+| Phase 2 | HTTP 与 Postman 接口测试 | 🚧 进行中 |
 | Phase 3 | Requests 接口自动化 | ⬜ 未开始 |
 | Phase 4 | Pytest 工程化 | ⬜ 未开始 |
 | Phase 5 | 测试数据管理 | ⬜ 未开始 |
@@ -68,7 +68,7 @@ Local Repository
 GitHub
 ```
 
-# Phase 1｜业务分析与手工测试设计 🚧
+# Phase 1｜业务分析与手工测试设计 ✅
 ## 目标
 
 在开始自动化之前，先理解 OrangeHRM 的核心业务。
@@ -98,15 +98,15 @@ Admin 登录
 请假状态发生变化
 
 ## 需要完成
-- 熟悉 Login 模块
-- 熟悉 PIM 模块
-- 熟悉 Admin 模块
-- 熟悉 Leave 模块
-- 熟悉 My Info 模块
-- 创建 docs/business_notes.md
-- 创建 docs/test_points.md
-- 完成 Login 第一版测试点
-- 完成 Add Employee 第一版测试点
+- [x] 熟悉 Login 模块
+- [x] 熟悉 PIM 模块
+- [x] 熟悉 Admin 模块
+- [x] 熟悉 Leave 模块
+- [x] 熟悉 My Info 模块
+- [x] 创建 docs/business_notes.md
+- [x] 创建 docs/test_points.md
+- [x] 完成 Login 第一版测试点
+- [x] 完成 Add Employee 第一版测试点
 
 ## 重点测试思维
 - 正常流程
@@ -126,7 +126,7 @@ Admin 登录
 
 ---
 
-# Phase 2｜HTTP + Postman 接口测试
+# Phase 2｜HTTP + Postman 接口测试 🚧
 ## 目标
 
 从“页面操作”进入“接口测试”。
