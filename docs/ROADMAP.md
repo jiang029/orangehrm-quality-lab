@@ -11,8 +11,8 @@
 |---|---|---|
 | Phase 0 | 项目初始化 | ✅ 已完成 |
 | Phase 1 | 业务分析与手工测试设计 | ✅ 已完成 |
-| Phase 2 | HTTP 与 Postman 接口测试 | 🚧 进行中 |
-| Phase 3 | Requests 接口自动化 | ⬜ 未开始 |
+| Phase 2 | HTTP 与 Postman 接口测试 | ✅ 已完成 |
+| Phase 3 | Requests 接口自动化 | 🚧 进行中 |
 | Phase 4 | Pytest 工程化 | ⬜ 未开始 |
 | Phase 5 | 测试数据管理 | ⬜ 未开始 |
 | Phase 6 | Docker 本地测试环境 | ⬜ 未开始 |
@@ -126,7 +126,7 @@ Admin 登录
 
 ---
 
-# Phase 2｜HTTP + Postman 接口测试 🚧
+# Phase 2｜HTTP + Postman 接口测试 ✅
 ## 目标
 
 从“页面操作”进入“接口测试”。
@@ -144,13 +144,16 @@ Admin 登录
 - JSON
 
 ## 实践任务
-- 使用浏览器 DevTools 查看请求
-- 找到员工查询相关接口
-- 理解 GET / POST / PUT / DELETE
-- 使用 Postman 调用接口
-- 验证正常请求
-- 验证异常参数
-- 验证鉴权 / 权限
+- [x] 使用浏览器 DevTools 观察 Employee Search 请求
+- [x] 识别 URL、Method、Params、Headers、Cookie、Status 和 JSON Response
+- [x] 确认登录页、登录提交和 Employee Search 的真实请求结构
+- [x] 使用 Postman Cookie Jar 维护 Session Cookie
+- [x] 从登录页动态提取 CSRF Token，并通过 Collection Variable 传递
+- [x] 完成 `GET Login Page → POST Login` 认证链路
+- [x] 动态生成 Employee ID，创建员工并保存响应数据
+- [x] 查询刚创建的员工并验证关键字段一致
+- [x] 使用 Collection Runner 按顺序执行完整请求链，8 个断言全部通过
+- [x] 清除认证 Session 后直接查询员工，确认返回 `401 Unauthorized`
 
 ## 常见状态码
 - 200  请求成功
@@ -163,9 +166,26 @@ Admin 登录
 ## 验收标准
 能够从一次页面操作说明：前端发送了什么 HTTP 请求，后端返回了什么响应。
 
+## 实际验收结果
+
+```text
+GET Login Page
+      ↓
+POST Login
+      ↓
+POST Add Employee
+      ↓
+GET Search Employee
+```
+
+- 正向链路通过：4 个请求按顺序执行，8 个断言全部通过；
+- 测试数据不依赖公共 Demo 的固定员工，创建成功后动态传递 `employeeId`；
+- 未认证验证通过：清除 Session 后直接请求 Employee Search，实际返回 `401 Unauthorized`；
+- 未认证响应体：`{"error":{"status":401,"message":"Session expired"}}`。
+
 ---
 
-# Phase 3｜Python Requests 接口自动化
+# Phase 3｜Python Requests 接口自动化 🚧
 ## 目标
 
 使用 Python 将 Postman 中的接口测试转为自动化测试。
@@ -182,23 +202,28 @@ tests/
 ```
 
 ## 学习内容
+
 - requests.get
 - requests.post
 - requests.put
 - requests.delete
+- requests.Session
 - Response
 - JSON
 - Assertion
-- API Client 封装
-- Token 管理
+- 认证会话管理
+- API Client 基础封装
 
 ## 实践任务
-- 编写第一个 Requests 请求
-- 编写第一个接口断言
-- 创建 Employee API Client
-- 创建接口自动化测试
-- 覆盖正常 / 异常场景
 
+- [ ] 使用 Requests 编写第一个 GET 请求
+- [ ] 理解 Response、status_code、text 和 json()
+- [ ] 编写基础接口断言
+- [ ] 使用 requests.Session 跑通 OrangeHRM 登录
+- [ ] 使用 Python 完成员工创建和查询
+- [ ] 完成员工修改和删除，形成基础 CRUD 链路
+- [ ] 补充少量有价值的异常场景
+- [ ] 在出现明显重复代码后，再进行 Employee API Client 基础封装
 ---
 
 # Phase 4｜Pytest 工程化

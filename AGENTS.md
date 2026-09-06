@@ -19,28 +19,29 @@
 - 面试时如何解释。
 
 ---
-
 ## 二、当前技术栈
 
-当前已经使用：
+当前已经实践：
 
 - Python 3.12
 - Pytest
+- Postman
+- 浏览器 DevTools
 - Git
 - GitHub
+- Codex
 
 后续会根据项目实际需求逐步引入：
 
 - Requests
-- Postman
 - MySQL / MariaDB
 - PyMySQL
 - Docker / Docker Compose
 - Playwright
 - Allure
 - GitHub Actions
-- Codex
 - AGENTS.md / Skill
+
 
 注意：
 
@@ -286,3 +287,27 @@ docs: add business analysis
 test: add login test cases
 feat: add employee api client
 refactor: extract login fixture
+
+---
+
+## 八、当前项目阶段
+
+当前进度：
+
+- Phase 0：✅ 项目初始化
+- Phase 1：✅ 业务分析与手工测试设计
+- Phase 2：✅ HTTP 与 Postman 接口测试
+- Phase 3：🚧 Python Requests 接口自动化
+
+当前 Phase 3 的学习原则：
+
+1. 先使用最简单、直接的 Requests 代码理解 HTTP 请求与响应；
+2. 重点理解 `requests.Session`、Response、JSON 和基础断言；
+3. 先使用 Python 跑通登录、创建员工和查询员工；
+4. 再逐步补充修改、删除和少量有价值的异常场景；
+5. 在出现明显重复代码之前，不提前进行复杂封装；
+6. 暂时不要引入 fixture、数据驱动或大型自动化框架，这些内容在后续阶段逐步学习。
+
+当前最重要的目标：
+
+> 代码不仅能够运行，而且需要能够解释每一段代码为什么存在、解决了什么问题。
