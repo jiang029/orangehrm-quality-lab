@@ -25,8 +25,9 @@
 - [x] Phase 0：项目初始化
 - [x] Phase 1：业务分析与手工测试设计
 - [x] Phase 2：HTTP 与 Postman 接口测试
-- [ ] Phase 3：Python Requests 接口自动化（当前阶段）
-- [ ] 后续阶段：Pytest 工程化、测试数据管理、Docker、数据库、UI 自动化、测试报告与 CI
+- [x] Phase 3：Python Requests 接口自动化
+- [ ] Phase 4：Pytest 工程化（当前阶段）
+- [ ] 后续阶段：测试数据管理、Docker、数据库、UI 自动化、测试报告与 CI
 
 详细计划和状态见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
@@ -64,10 +65,10 @@ Postman 中只保存请求结构和非敏感测试逻辑，不应提交账号密
 - Postman
 - Git / GitHub
 - 浏览器 DevTools
+- Requests
 
 后续按路线逐步引入：
 
-- Requests
 - MySQL / MariaDB、PyMySQL
 - Docker / Docker Compose
 - Playwright

@@ -12,8 +12,8 @@
 | Phase 0 | 项目初始化 | ✅ 已完成 |
 | Phase 1 | 业务分析与手工测试设计 | ✅ 已完成 |
 | Phase 2 | HTTP 与 Postman 接口测试 | ✅ 已完成 |
-| Phase 3 | Requests 接口自动化 | 🚧 进行中 |
-| Phase 4 | Pytest 工程化 | ⬜ 未开始 |
+| Phase 3 | Requests 接口自动化 | ✅ 已完成 |
+| Phase 4 | Pytest 工程化 | 🚧 进行中 |
 | Phase 5 | 测试数据管理 | ⬜ 未开始 |
 | Phase 6 | Docker 本地测试环境 | ⬜ 未开始 |
 | Phase 7 | MySQL 数据库校验 | ⬜ 未开始 |
@@ -185,7 +185,7 @@ GET Search Employee
 
 ---
 
-# Phase 3｜Python Requests 接口自动化 🚧
+# Phase 3｜Python Requests 接口自动化 ✅
 ## 目标
 
 使用 Python 将 Postman 中的接口测试转为自动化测试。
@@ -216,33 +216,45 @@ tests/
 
 ## 实践任务
 
-- [ ] 使用 Requests 编写第一个 GET 请求
-- [ ] 理解 Response、status_code、text 和 json()
-- [ ] 编写基础接口断言
-- [ ] 使用 requests.Session 跑通 OrangeHRM 登录
-- [ ] 使用 Python 完成员工创建和查询
-- [ ] 完成员工修改和删除，形成基础 CRUD 链路
-- [ ] 补充少量有价值的异常场景
-- [ ] 在出现明显重复代码后，再进行 Employee API Client 基础封装
+- [x] 使用 Requests 编写第一个 GET 请求
+- [x] 理解 Response、status_code、text 和 json()
+- [x] 编写基础接口断言
+- [x] 使用 requests.Session 跑通 OrangeHRM 登录
+- [x] 使用 Python 完成员工创建和查询
+- [x] 完成员工修改和删除，形成基础 CRUD 链路
+- [x] 补充未认证访问 Employee Search 返回 401 的异常场景
+- [x] 在出现明显重复代码后，完成 Employee API Client 基础封装
 ---
 
-# Phase 4｜Pytest 工程化
+# Phase 4｜Pytest 工程化 🚧
 ## 目标
 
 使用 Pytest 管理测试前置、测试数据和测试分类。
 
 ## 学习内容
-- fixture
-- conftest.py
-- fixture scope
-- parametrize
-- marker
-- setup / teardown
+
+- [x] fixture
+- [x] conftest.py
+- [x] fixture scope
+- [ ] parametrize
+- [ ] marker
+- [x] setup / teardown
+
+## 已完成实践
+
+- [x] 将 Requests 一条龙脚本拆分为职责清晰的 Pytest 测试
+- [x] 使用 `conftest.py` 管理共享前置条件和测试数据清理
+- [x] 使用 session scope 复用登录 Session 和 Employee API Client
+- [x] 使用 function scope 为每条员工测试创建独立数据
+- [x] 使用 `yield` 组织 setup / teardown，断言失败时仍执行清理
+- [x] 通过环境变量传入账号、密码和可选运行地址
+- [ ] 使用 `parametrize` 覆盖多组输入
+- [ ] 使用 marker 管理测试分类
 
 ## 重点问题
 需要能够解释：
 - 为什么要使用 fixture？
-- 为什么登录 Token 可以使用 session scope？
+为什么登录 Session / 认证会话适合使用 session scope？
 - 为什么测试数据适合使用参数化？
 
 ---
