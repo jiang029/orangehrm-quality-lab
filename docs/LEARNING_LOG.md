@@ -315,9 +315,13 @@ Content-Type: application/json
 
 teardown 删除测试员工时接受 `200` 或 `404`：`200` 表示清理成功；`404` 表示员工已经被测试步骤删除或当前已不存在，也达到了“环境中不残留该数据”的清理目标。这种容错只用于清理阶段，不会放宽业务测试本身的断言。
 
-### 当前边界与待优化理解
+### 后续修正：AAA 职责边界
 
-`test_create_employee` 的 Create 动作目前发生在 `created_employee` fixture 中，测试函数主要验证创建响应。这样便于复用和清理，但 fixture 同时承担了“测试动作”和“数据准备”两种职责。当前阶段暂不修改；后续学习 fixture 设计时，可以评估是否让创建测试在测试函数中显式执行，同时保留可靠清理。
+- Arrange 负责准备前置条件和输入数据；
+- Act 负责执行当前用例真正要验证的业务动作；
+- Assert 负责验证 HTTP 结果和关键业务结果。
+
+`test_create_employee` 最初把 Create 动作放在 `created_employee` fixture 中，导致测试主体看不到真正的 Act。后续将 `employee_data` 调整为只生成请求数据，由测试函数显式执行 Create；`created_employee` 中的 Create 则只服务于 Search / Update / Delete，因为对这些测试来说，预先存在的员工属于 Arrange。fixture 可以复用公共前置，但不应因此隐藏当前用例真正需要验证的 Act。
 
 ### 验证结果
 
@@ -336,6 +340,24 @@ teardown 删除测试员工时接受 `200` 或 `404`：`200` 表示清理成功�
 - API 请求层回答“怎样调用接口”，测试层回答“这个行为是否符合预期”；
 - 环境变量把凭证和运行配置留在执行环境中，既避免敏感信息进入 Git，也允许同一套测试切换环境；
 - 拆分后的六条测试可以独立报告失败，比把原流程塞进一个测试函数更容易定位和解释。
+
+---
+
+## 6. Pytest 参数化与 Marker 分类
+
+### parametrize
+
+- `pytest.mark.parametrize` 适合同一套测试步骤和断言需要覆盖多组输入的场景，避免复制多个结构相同的测试函数；
+- Pytest 会在 collection 阶段把参数化数据展开为独立 case，因此每组数据会单独执行、单独显示结果；
+- `pytest.param(..., id="...")` 可以为 case 提供有业务含义的名称，比默认参数值更便于阅读报告和定位失败；
+- 本轮在确认 OrangeHRM Demo 对空 `firstName` 和空 `lastName` 均真实返回 `422 Invalid Parameter` 后，才将两组必填字段校验写成参数化断言。
+
+### marker
+
+- `smoke` 用于快速确认登录、创建、查询等核心能力是否基本可用；
+- `regression` 用于执行更完整的回归集合，包括异常场景和员工 CRUD；
+- 一条核心用例可以同时属于 `smoke` 和 `regression`，因为它既承担快速检查，也属于完整回归范围；
+- `pytest -m` 用于按 marker 表达式筛选测试，不是执行 Pytest 时必须提供的参数。
 
 ---
 

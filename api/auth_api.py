@@ -6,7 +6,8 @@ import requests
 def login(base_url, username, password):
     """完成 OrangeHRM Session 登录并返回登录过程中的响应。"""
 
-    # 登录页和登录提交必须复用同一个 Session，确保 CSRF Token 与 Cookie 匹配。
+    # Session 会跨请求保存 Cookie。登录页和登录提交必须复用同一个 Session，
+    # 才能让 HTML 中的 CSRF Token 与服务端发放的匿名 Session Cookie 保持匹配。
     session = requests.Session()
 
     login_page_url = f"{base_url}/web/index.php/auth/login"
@@ -23,12 +24,14 @@ def login(base_url, username, password):
     login_url = f"{base_url}/web/index.php/auth/validate"
     login_response = session.post(
         login_url,
+        # 登录端点接收的是 HTML 表单数据，因此使用 data=，而不是 JSON 请求体。
         data={
             "_token": csrf_token,
             "username": username,
             "password": password,
         },
-        # 登录成功和失败都可能返回 302，因此保留原始响应以检查 Location。
+        # 登录成功和失败都可能返回 302；禁止自动跟随跳转后，测试才能通过
+        # 原始 Location 区分跳往 Dashboard 的成功结果和返回 Login 的失败结果。
         allow_redirects=False,
     )
 

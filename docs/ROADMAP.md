@@ -13,7 +13,7 @@
 | Phase 1 | 业务分析与手工测试设计 | ✅ 已完成 |
 | Phase 2 | HTTP 与 Postman 接口测试 | ✅ 已完成 |
 | Phase 3 | Requests 接口自动化 | ✅ 已完成 |
-| Phase 4 | Pytest 工程化 | 🚧 进行中 |
+| Phase 4 | Pytest 工程化 | ✅ 已完成 |
 | Phase 5 | 测试数据管理 | ⬜ 未开始 |
 | Phase 6 | Docker 本地测试环境 | ⬜ 未开始 |
 | Phase 7 | MySQL 数据库校验 | ⬜ 未开始 |
@@ -226,7 +226,7 @@ tests/
 - [x] 在出现明显重复代码后，完成 Employee API Client 基础封装
 ---
 
-# Phase 4｜Pytest 工程化 🚧
+# Phase 4｜Pytest 工程化 ✅
 ## 目标
 
 使用 Pytest 管理测试前置、测试数据和测试分类。
@@ -236,8 +236,8 @@ tests/
 - [x] fixture
 - [x] conftest.py
 - [x] fixture scope
-- [ ] parametrize
-- [ ] marker
+- [x] parametrize
+- [x] marker
 - [x] setup / teardown
 
 ## 已完成实践
@@ -248,14 +248,20 @@ tests/
 - [x] 使用 function scope 为每条员工测试创建独立数据
 - [x] 使用 `yield` 组织 setup / teardown，断言失败时仍执行清理
 - [x] 通过环境变量传入账号、密码和可选运行地址
-- [ ] 使用 `parametrize` 覆盖多组输入
-- [ ] 使用 marker 管理测试分类
+- [x] 使用 `parametrize` 覆盖多组输入
+- [x] 使用 marker 管理测试分类
 
 ## 重点问题
 需要能够解释：
 - 为什么要使用 fixture？
-为什么登录 Session / 认证会话适合使用 session scope？
+- 为什么登录 Session / 认证会话适合使用 session scope？
 - 为什么测试数据适合使用参数化？
+
+## 实际验收结果
+
+- `python -m pytest tests/api -v`：`8 passed`，`0 failed`，`0 skipped`；
+- `python -m pytest -m smoke -v`：`3 passed`，`0 failed`，`0 skipped`，`6 deselected`；
+- `python -m pytest -m regression -v`：`8 passed`，`0 failed`，`0 skipped`，`1 deselected`。
 
 ---
 

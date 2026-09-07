@@ -26,8 +26,9 @@
 - [x] Phase 1：业务分析与手工测试设计
 - [x] Phase 2：HTTP 与 Postman 接口测试
 - [x] Phase 3：Python Requests 接口自动化
-- [ ] Phase 4：Pytest 工程化（当前阶段）
-- [ ] 后续阶段：测试数据管理、Docker、数据库、UI 自动化、测试报告与 CI
+- [x] Phase 4：Pytest 工程化
+- [ ] Phase 5：测试数据管理（当前阶段）
+- [ ] 后续阶段：Docker、数据库、UI 自动化、测试报告与 CI
 
 详细计划和状态见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
