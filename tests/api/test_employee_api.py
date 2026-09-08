@@ -1,5 +1,12 @@
 import pytest
 
+from tests.data.employee_data import build_employee_data, load_employee_cases
+
+
+# 测试模块加载时，JSON 已通过标准库转换成 Python list/dict。
+# ids 的列表推导式只提取每组 case 的可读名称，让 Pytest 报告仍容易定位失败场景。
+EMPLOYEE_CASES = load_employee_cases()
+
 
 @pytest.mark.smoke
 @pytest.mark.regression
@@ -30,25 +37,24 @@ def test_create_employee(employee_api, employee_data):
             assert cleanup_response.status_code in (200, 404)
 
 
-# 这两个场景都验证 Create Employee 的必填姓名校验：请求步骤和断言完全相同，
-# 只有被置空的字段不同，因此适合用 parametrize 表达为一条测试逻辑、两组输入。
+# JSON 只保存两条已经真实确认的业务 case；动态姓名和 Employee ID 仍在运行时
+# 由 Factory 生成。这让固定规则与易冲突的运行时数据各自放在合适的位置。
 @pytest.mark.regression
 @pytest.mark.parametrize(
-    "required_field",
-    [
-        pytest.param("firstName", id="empty-first-name"),
-        pytest.param("lastName", id="empty-last-name"),
-    ],
+    "employee_case",
+    EMPLOYEE_CASES,
+    ids=[case["case_id"] for case in EMPLOYEE_CASES],
 )
 def test_create_employee_rejects_empty_required_name(
     employee_api,
-    employee_data,
-    required_field,
+    employee_case,
 ):
     # Arrange｜准备测试前置和输入数据
-    # 每个参数化 case 都从完整 payload 复制一份数据，只替换当前要验证的必填字段。
-    invalid_employee_data = employee_data.copy()
-    invalid_employee_data[required_field] = ""
+    # ** 会把 {字段名: 输入值} 展开为关键字参数，交给 Factory 的 overrides。
+    # 因而每组 case 都先生成完整合法 payload，再只覆盖当前需要验证的字段。
+    invalid_employee_data = build_employee_data(
+        **{employee_case["field"]: employee_case["value"]}
+    )
     unexpected_emp_number = None
 
     try:
@@ -59,12 +65,12 @@ def test_create_employee_rejects_empty_required_name(
         unexpected_emp_number = unexpected_data.get("empNumber")
 
         # Assert｜验证 HTTP 结果和关键业务结果
-        # 以下结构来自本轮对公共 Demo 的真实响应，而不是推测状态码或字段名。
-        assert response.status_code == 422
+        # expected 来自已经验证过的固定 JSON case，而不是在测试中重复写死。
+        assert response.status_code == employee_case["expected_http_status"]
         error = response_body["error"]
-        assert error["status"] == "422"
-        assert error["message"] == "Invalid Parameter"
-        assert error["data"]["invalidParamKeys"] == [required_field]
+        assert error["status"] == employee_case["expected_error_status"]
+        assert error["message"] == employee_case["expected_message"]
+        assert error["data"]["invalidParamKeys"] == [employee_case["field"]]
     finally:
         # 正常规则下不会创建员工；若 Demo 行为变化却意外成功，仍立即清理数据。
         if unexpected_emp_number is not None:

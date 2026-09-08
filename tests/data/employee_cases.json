@@ -1,0 +1,18 @@
+[
+  {
+    "case_id": "empty-first-name",
+    "field": "firstName",
+    "value": "",
+    "expected_http_status": 422,
+    "expected_error_status": "422",
+    "expected_message": "Invalid Parameter"
+  },
+  {
+    "case_id": "empty-last-name",
+    "field": "lastName",
+    "value": "",
+    "expected_http_status": 422,
+    "expected_error_status": "422",
+    "expected_message": "Invalid Parameter"
+  }
+]

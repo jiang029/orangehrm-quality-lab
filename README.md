@@ -27,8 +27,9 @@
 - [x] Phase 2：HTTP 与 Postman 接口测试
 - [x] Phase 3：Python Requests 接口自动化
 - [x] Phase 4：Pytest 工程化
-- [ ] Phase 5：测试数据管理（当前阶段）
-- [ ] 后续阶段：Docker、数据库、UI 自动化、测试报告与 CI
+- [x] Phase 5：测试数据管理
+- [ ] Phase 6：Docker 本地测试环境（当前阶段）
+- [ ] 后续阶段：数据库、UI 自动化、测试报告与 CI
 
 详细计划和状态见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
@@ -67,6 +68,8 @@ Postman 中只保存请求结构和非敏感测试逻辑，不应提交账号密
 - Git / GitHub
 - 浏览器 DevTools
 - Requests
+- Faker
+- JSON 数据驱动测试
 
 后续按路线逐步引入：
 

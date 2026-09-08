@@ -14,7 +14,7 @@
 | Phase 2 | HTTP 与 Postman 接口测试 | ✅ 已完成 |
 | Phase 3 | Requests 接口自动化 | ✅ 已完成 |
 | Phase 4 | Pytest 工程化 | ✅ 已完成 |
-| Phase 5 | 测试数据管理 | ⬜ 未开始 |
+| Phase 5 | 测试数据管理 | ✅ 已完成 |
 | Phase 6 | Docker 本地测试环境 | ⬜ 未开始 |
 | Phase 7 | MySQL 数据库校验 | ⬜ 未开始 |
 | Phase 8 | Playwright UI 自动化 | ⬜ 未开始 |
@@ -265,19 +265,21 @@ tests/
 
 ---
 
-# Phase 5｜测试数据管理
+# Phase 5｜测试数据管理 ✅
 ## 目标
 
 避免自动化测试大量使用写死的数据。
 
-## 计划引入
-- Faker
-- 时间戳
-- YAML / JSON
-- 测试数据工厂
+## 本轮已实现
+
+- [x] 使用时间戳动态生成 Employee ID
+- [x] 使用 Faker 生成限制为 ASCII 字母的测试姓名
+- [x] 使用 JSON 保存已经真实确认的必填字段异常 case
+- [x] 使用函数式测试数据 Factory 生成合法基础 payload 并支持 `**overrides` 字段覆盖
+- [x] 使用外部 JSON 数据和 `pytest.mark.parametrize` 完成基础数据驱动测试
 
 ## 实践内容
-例如自动生成：`QA_User_20260905_xxxx`
+例如：由时间戳生成 10 位数字 Employee ID，并在当前 Python 进程内避免重复。
 
 避免：
 - Tom
@@ -286,6 +288,13 @@ tests/
 
 ## 重点理解
 测试数据与测试逻辑分离。
+
+## 最终验收结果
+
+- `python -m pytest tests/api -v`：`8 passed`，`0 failed`，`0 skipped`；
+- `python -m pytest -m smoke -v`：`3 passed`，`0 failed`，`0 skipped`，`6 deselected`；
+- `python -m pytest -m regression -v`：`8 passed`，`0 failed`，`0 skipped`，`1 deselected`；
+- Faker、函数式 Factory、JSON 参数化 case、Employee CRUD 和 cleanup 均在官方公共 Demo 上完成真实验证。
 
 ---
 
