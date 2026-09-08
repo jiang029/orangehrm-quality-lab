@@ -395,4 +395,43 @@ Faker 只提供模拟姓名原料；Factory 负责把姓名、动态 Employee ID
 
 ---
 
+## 8. Docker 本地测试环境与持久化
+
+### 为什么是两个服务、两个 volume
+
+Compose 只管理 OrangeHRM 和 MariaDB 两个服务。OrangeHRM 通过服务名 `db` 和容器端口 `3306` 连接数据库；宿主机只把 `8080` 映射到 Web 容器的 `80`，数据库无需暴露给宿主机。
+
+MariaDB 数据放在 `orangehrm_quality_lab_db_data`，因为容器重建不应删除业务数据。OrangeHRM 官方 image 还声明了 `/var/www/html` volume，安装器生成的连接配置也在该目录中，因此使用第二个显式 named volume `orangehrm_quality_lab_app_data`。否则 Docker 会创建匿名 volume，down 后再次 up 不会自动复用原来的安装状态。
+
+这说明“数据库有 volume”不一定就足够：还要检查应用把环境特有配置写在哪里。当前方案的代价是应用 volume 会遮蔽以后新 image 中的文件，因此未来升级版本需要单独迁移，不能只改 tag。
+
+### 实际问题一：Docker 已安装，但旧进程的 PATH 未刷新
+
+Docker Desktop 以当前用户安装到 `AppData\Local\Programs\DockerDesktop` 后，当前 Codex PowerShell 仍报告找不到 `docker`。从卸载注册表和安装目录确认软件已存在，并直接调用 `resources\bin\docker.exe` 后，Client、Server 和 Compose 都能正常返回版本。
+
+第一次只调用绝对路径拉取 image 时又出现 `docker-credential-desktop` 找不到。原因是 Docker CLI 能启动，但 credential helper 所在目录仍不在当前进程 PATH。临时把完整 `resources\bin` 加到该进程 PATH 后拉取成功。正常使用时重新打开终端或 Codex，让安装后的 PATH 生效即可。
+
+### 实际问题二：已弃用的 CLI “帮助”参数仍触发安装
+
+执行旧入口 `php installer/cli_install.php --help` 时，它先提示该入口已弃用，却继续读取镜像自带示例配置并尝试连接 `127.0.0.1`，最终返回 `Connection refused`。
+
+容器中的 `127.0.0.1` 只指向 OrangeHRM 容器自己，不是 MariaDB 容器。检查确认没有生成安装配置，MariaDB 也未受影响。随后改用提示中的新版命令：
+
+```powershell
+docker compose exec orangehrm sh -lc "cd /var/www/html && php installer/console install:on-existing-database"
+```
+
+数据库 Host 填 Compose 服务名 `db`。安装器的系统检查实际识别到 MariaDB `10.11.19`，数据库迁移、管理员创建和配置生成全部完成。
+
+### 实际验收与理解
+
+- `depends_on` 配合 MariaDB healthcheck，使 OrangeHRM 等待数据库真正可连接，而不只是等待 DB 容器进程被创建；
+- 首次启动 HTTP `200` 页面位于 `/installer/index.php/welcome`，安装完成后变为 `/web/index.php/auth/login`；
+- MariaDB 日志中的 `io_uring` 回退和 Apache 的 `ServerName` 提示是非阻塞警告，healthcheck、数据库 ping、HTTP 和 smoke 均通过；
+- 不带 `-v` 执行 down/up 后，两个 volume 的创建时间不变，MariaDB 日志显示无需重新初始化，OrangeHRM 仍进入登录页；
+- 重启前后本地 smoke 均为 `3 passed`，说明登录、员工创建和查询在本地环境真实可用；
+- 本阶段只确认数据库服务和应用连接，没有查询业务表，也没有编写数据库断言，Phase 7 边界保持不变。
+
+---
+
 

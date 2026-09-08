@@ -1,0 +1,36 @@
+name: orangehrm-quality-lab
+
+services:
+  db:
+    image: mariadb:10.11.19
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${ORANGEHRM_DB_NAME}
+      MARIADB_USER: ${ORANGEHRM_DB_USER}
+      MARIADB_PASSWORD: ${ORANGEHRM_DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${ORANGEHRM_DB_ROOT_PASSWORD}
+    volumes:
+      - orangehrm_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 30s
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  orangehrm:
+    image: orangehrm/orangehrm:5.9
+    restart: unless-stopped
+    ports:
+      - "${ORANGEHRM_HOST_PORT:-8080}:80"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - orangehrm_app_data:/var/www/html
+
+volumes:
+  orangehrm_db_data:
+    name: orangehrm_quality_lab_db_data
+  orangehrm_app_data:
+    name: orangehrm_quality_lab_app_data

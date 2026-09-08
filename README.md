@@ -28,8 +28,9 @@
 - [x] Phase 3：Python Requests 接口自动化
 - [x] Phase 4：Pytest 工程化
 - [x] Phase 5：测试数据管理
-- [ ] Phase 6：Docker 本地测试环境（当前阶段）
-- [ ] 后续阶段：数据库、UI 自动化、测试报告与 CI
+- [x] Phase 6：Docker 本地测试环境
+- [ ] Phase 7：MySQL 数据库校验（下一阶段）
+- [ ] 后续阶段：UI 自动化、测试报告与 CI
 
 详细计划和状态见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
@@ -70,11 +71,13 @@ Postman 中只保存请求结构和非敏感测试逻辑，不应提交账号密
 - Requests
 - Faker
 - JSON 数据驱动测试
+- Docker Desktop / Docker Engine
+- Docker Compose
+- MariaDB 10.11 本地测试环境
 
 后续按路线逐步引入：
 
-- MySQL / MariaDB、PyMySQL
-- Docker / Docker Compose
+- PyMySQL 与数据库状态断言
 - Playwright
 - Allure
 - GitHub Actions
@@ -85,6 +88,7 @@ Postman 中只保存请求结构和非敏感测试逻辑，不应提交账号密
 - [测试点](docs/test_points.md)
 - [学习路线](docs/ROADMAP.md)
 - [学习记录](docs/LEARNING_LOG.md)
+- [Docker 本地环境](docs/DOCKER_SETUP.md)
 - [项目协作规则](AGENTS.md)
 
 ## 项目原则

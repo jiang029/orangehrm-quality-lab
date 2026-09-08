@@ -15,7 +15,7 @@
 | Phase 3 | Requests 接口自动化 | ✅ 已完成 |
 | Phase 4 | Pytest 工程化 | ✅ 已完成 |
 | Phase 5 | 测试数据管理 | ✅ 已完成 |
-| Phase 6 | Docker 本地测试环境 | ⬜ 未开始 |
+| Phase 6 | Docker 本地测试环境 | ✅ 已完成 |
 | Phase 7 | MySQL 数据库校验 | ⬜ 未开始 |
 | Phase 8 | Playwright UI 自动化 | ⬜ 未开始 |
 | Phase 9 | Allure 测试报告 | ⬜ 未开始 |
@@ -298,7 +298,7 @@ tests/
 
 ---
 
-# Phase 6｜Docker 本地部署 OrangeHRM
+# Phase 6｜Docker 本地部署 OrangeHRM ✅
 ## 目标
 
 解决公共 Demo 数据不稳定、无法直接控制数据库的问题。
@@ -317,6 +317,19 @@ MySQL / MariaDB
 - Volume
 - Docker Compose
 
+## 已完成实践
+
+- [x] 核验并使用 OrangeHRM 官方 image `orangehrm/orangehrm:5.9`
+- [x] 使用 Docker Official Image `mariadb:10.11.19`
+- [x] 使用 Compose 管理 OrangeHRM 与 MariaDB 两个服务
+- [x] 使用 MariaDB healthcheck 和 `depends_on` 管理启动依赖
+- [x] 配置 `localhost:8080` 到 OrangeHRM 容器 `80` 端口的映射
+- [x] 使用独立 named volume 持久化数据库与 OrangeHRM 安装状态
+- [x] 完成 OrangeHRM 首次初始化并创建本地管理员
+- [x] 实际访问本地登录页并验证数据库连接
+- [x] 完成不带 `-v` 的 Compose down/up 恢复验证
+- [x] 使用现有环境变量切换机制在本地执行 smoke 测试
+
 ## 常用命令
 - docker ps
 - docker compose up -d
@@ -325,6 +338,17 @@ MySQL / MariaDB
 
 ## 验收标准
 能够解释：为什么项目需要 Docker，而不是只说“我会 Docker”。
+
+## 实际验收结果
+
+- Docker Engine `29.7.2`、Docker Compose `v5.5.1` 实际可用；
+- `docker compose config --quiet` 校验通过；
+- MariaDB 容器保持 healthy，专用数据库用户连接检查返回 `mysqld is alive`；
+- `http://localhost:8080` 实际返回 `200` 并进入 OrangeHRM 登录页；
+- `orangehrm_quality_lab_db_data` 与 `orangehrm_quality_lab_app_data` 已实际创建；
+- `docker compose down` 后两个 volume 保留，重新 `up -d` 后仍直接进入登录页；
+- 重启前、重启后分别执行本地 smoke，均为 `3 passed`、`6 deselected`；
+- 未新增数据库测试、PyMySQL 或 DB fixture，Phase 7 仍未开始。
 
 ---
 
