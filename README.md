@@ -29,7 +29,7 @@
 - [x] Phase 4：Pytest 工程化
 - [x] Phase 5：测试数据管理
 - [x] Phase 6：Docker 本地测试环境
-- [ ] Phase 7：MySQL 数据库校验（下一阶段）
+- [x] Phase 7：MySQL 数据库校验
 - [ ] 后续阶段：UI 自动化、测试报告与 CI
 
 详细计划和状态见 [docs/ROADMAP.md](docs/ROADMAP.md)。
@@ -74,10 +74,11 @@ Postman 中只保存请求结构和非敏感测试逻辑，不应提交账号密
 - Docker Desktop / Docker Engine
 - Docker Compose
 - MariaDB 10.11 本地测试环境
+- PyMySQL
+- API 响应与 MariaDB 最终状态联合断言
 
 后续按路线逐步引入：
 
-- PyMySQL 与数据库状态断言
 - Playwright
 - Allure
 - GitHub Actions

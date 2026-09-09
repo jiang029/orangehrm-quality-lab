@@ -2,19 +2,21 @@
 
 ## 为什么引入 Docker
 
-接口测试此前默认使用 OrangeHRM 官方公共 Demo。公共环境适合学习请求结构，但数据会被其他用户修改，服务状态也不受本项目控制，并且无法直接连接数据库。Phase 6 使用 Docker Compose 在本机运行独立的 OrangeHRM 和 MariaDB，为稳定回归及后续数据库校验提供可重复环境。
+接口测试此前默认使用 OrangeHRM 官方公共 Demo。公共环境适合学习请求结构，但数据会被其他用户修改，服务状态也不受本项目控制，并且无法直接连接数据库。Phase 6 使用 Docker Compose 在本机运行独立的 OrangeHRM 和 MariaDB，为稳定回归及数据库校验提供可重复环境。
 
 ## 当前架构
 
 ```text
-Host: http://localhost:8080
-              ↓ 8080:80
+Browser / Requests on Host
+          ↓ localhost:8080
 OrangeHRM 5.9 Container
-              ↓ db:3306（Compose 内部网络）
+          ↓ db:3306（Compose 内部网络）
 MariaDB 10.11.19 Container
+          ↑ 127.0.0.1:3307 → 3306
+Pytest / PyMySQL on Host
 ```
 
-数据库端口没有暴露到宿主机。OrangeHRM 通过 Compose 服务名 `db` 访问 MariaDB，只有 Web 服务通过宿主机端口 `8080` 对外提供访问。
+OrangeHRM 仍通过 Compose 服务名 `db` 和容器端口 `3306` 访问 MariaDB。为了让 Windows 宿主机上的 Pytest / PyMySQL 执行数据库断言，MariaDB 默认发布为 `127.0.0.1:3307->3306`。绑定回环地址意味着该端口只供本机使用，不通过 `0.0.0.0` 向局域网公开。
 
 ## Image 来源与版本
 
@@ -34,6 +36,8 @@ Copy-Item .env.example .env
 修改 `.env` 中所有 password placeholder，只保存本地环境使用的密码。`.env` 已被 `.gitignore` 忽略，不能提交；`.env.example` 只保存变量名和安全占位值。
 
 Compose 会自动读取 `.env` 做变量替换，但不会把其中的变量自动导出到当前 PowerShell，也不会自动提供给 pytest。
+
+`ORANGEHRM_DB_HOST_PORT` 控制 Compose 把数据库发布到哪个宿主机端口，默认是 `3307`；`ORANGEHRM_DB_PORT` 则是 Pytest / PyMySQL 进程连接的端口。两者需要保持一致，但职责不同。OrangeHRM 容器内部的连接地址不受影响，始终是 `db:3306`。
 
 ## 启动与初始化
 
@@ -116,10 +120,34 @@ $env:ORANGEHRM_PASSWORD = "<本地管理员密码>"
 
 `ORANGEHRM_BASE_URL` 不要添加末尾 `/`。Compose 使用的 `.env` 不会自动进入 pytest 进程，所以这三个变量需要显式设置。
 
+## 从宿主机运行数据库测试
+
+数据库测试只用于本地 OrangeHRM + MariaDB 环境。除了上方三个 API 环境变量，还要在运行测试的同一个 PowerShell 中显式设置数据库连接变量：
+
+```powershell
+$env:ORANGEHRM_DB_HOST = "127.0.0.1"
+$env:ORANGEHRM_DB_PORT = "3307"
+$env:ORANGEHRM_DB_NAME = "orangehrm"
+$env:ORANGEHRM_DB_USER = "orangehrm"
+$env:ORANGEHRM_DB_PASSWORD = "<本地数据库密码>"
+```
+
+先检查 TCP 端口，再执行使用 PyMySQL 的三条数据库集成测试：
+
+```powershell
+Test-NetConnection 127.0.0.1 -Port 3307
+.\.venv\Scripts\python.exe -B -m pytest tests\db -v -p no:cacheprovider
+```
+
+`Test-NetConnection` 只验证端口是否可达；最终仍以 PyMySQL 建立连接并成功执行查询为准。测试缺少必需环境变量时会 skip，并列出缺失的变量名；它不会自动读取 `.env`，也不会把真实密码写入源码。
+
+如果通过 `ORANGEHRM_DB_HOST_PORT` 修改了 Compose 的宿主机端口，需要把 PowerShell 中的 `ORANGEHRM_DB_PORT` 同步为相同值。数据库状态断言只执行参数化 `SELECT`；员工的创建、修改、删除和 cleanup 继续使用现有 API。
+
 ## 常见排查点
 
 1. **安装 Docker Desktop 后仍找不到 `docker`**：旧终端可能保留安装前的 PATH。重新打开终端或 Codex；如果临时直接调用 Docker 安装目录中的 CLI，也要确保同目录下的 credential helper 在 PATH 中。
 2. **启动后看到安装页**：这是官方 image 的正常首次启动行为，不是服务失败。使用 Web Installer 或新版 `installer/console`；不要把已弃用的 `installer/cli_install.php` 当作帮助命令运行，它会直接读取示例配置并尝试安装。
 3. **修改 `.env` 后数据库账号没有变化**：MariaDB 初始化变量只在数据目录为空时生效。保留 DB volume 时，修改 `.env` 不会重建已有用户或密码。
+4. **PyMySQL 连接错误的端口**：检查 `docker compose ps` 中的 host port，并确认它与当前 PowerShell 的 `ORANGEHRM_DB_PORT` 一致；容器间的 `db:3306` 不应改成 host port。
 
 日志中的 Apache `ServerName` 提示和 Docker Desktop 环境下 MariaDB 的 `io_uring` 回退是本轮观察到的非阻塞警告；应结合 healthcheck、`mysqld is alive`、HTTP 页面和测试结果判断服务是否可用。

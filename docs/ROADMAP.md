@@ -16,7 +16,7 @@
 | Phase 4 | Pytest 工程化 | ✅ 已完成 |
 | Phase 5 | 测试数据管理 | ✅ 已完成 |
 | Phase 6 | Docker 本地测试环境 | ✅ 已完成 |
-| Phase 7 | MySQL 数据库校验 | ⬜ 未开始 |
+| Phase 7 | MySQL 数据库校验 | ✅ 已完成 |
 | Phase 8 | Playwright UI 自动化 | ⬜ 未开始 |
 | Phase 9 | Allure 测试报告 | ⬜ 未开始 |
 | Phase 10 | Git 分支与 Pull Request | ⬜ 未开始 |
@@ -348,11 +348,11 @@ MySQL / MariaDB
 - `orangehrm_quality_lab_db_data` 与 `orangehrm_quality_lab_app_data` 已实际创建；
 - `docker compose down` 后两个 volume 保留，重新 `up -d` 后仍直接进入登录页；
 - 重启前、重启后分别执行本地 smoke，均为 `3 passed`、`6 deselected`；
-- 未新增数据库测试、PyMySQL 或 DB fixture，Phase 7 仍未开始。
+- Phase 6 收口时尚未新增数据库测试、PyMySQL 或 DB fixture；这些内容在下方 Phase 7 中完成。
 
 ---
 
-# Phase 7｜MySQL 数据库校验
+# Phase 7｜MySQL 数据库校验 ✅
 ## 目标
 
 在接口响应校验之外，进一步验证数据库最终状态。
@@ -361,29 +361,50 @@ MySQL / MariaDB
 ```text
 POST 创建员工
       ↓
-接口返回 employee_id
+接口返回 empNumber
       ↓
 查询数据库
       ↓
 确认员工记录真实存在
 ```
 
-## 学习内容
-- SELECT
-- WHERE
-- ORDER BY
-- COUNT
-- JOIN
-- PyMySQL
+## 已完成实践
 
-## 计划目录
+- [x] 将 MariaDB 宿主机端口仅绑定到 `127.0.0.1`，默认使用 `3307`；OrangeHRM 容器仍通过 `db:3306` 连接数据库
+- [x] 使用 PyMySQL 从 Windows 宿主机连接 MariaDB，并通过环境变量读取连接配置
+- [x] 在 `utils/db.py` 实现最小连接和 `fetch_one` 查询层，使用 `DictCursor`、参数化 SQL 和明确的资源关闭
+- [x] 实际确认 OrangeHRM 5.9 使用 `hs_hr_employee`，并核验员工主键、Employee ID 和三个姓名字段
+- [x] 使用 `emp_number` 精确查询同一记录，完成 Create / Update / Delete 的 API Response Assertion + Database State Assertion
+- [x] 建立独立 `db` marker 和本地环境守卫，不让数据库测试依赖或混用官方公共 Demo
+- [x] `SELECT` / `WHERE` 进入自动化断言；`COUNT` / `ORDER BY` / `JOIN` 在本地数据库实际练习，未为打卡增加业务测试
+
+## 实际目录
+
 ```text
 utils/
 └── db.py
+
+tests/
+└── db/
+    ├── conftest.py
+    └── test_employee_db.py
 ```
 
 ## 重点理解
-接口响应断言 + 数据库状态断言
+
+- API 响应成功只能证明接口返回了成功结果；数据库查询进一步确认最终持久化状态；
+- 数据库测试中的 `SELECT` 是 Assert，业务数据创建、修改、删除和 cleanup 仍通过现有 API 完成；
+- SQL 只用 `WHERE emp_number = %s` 定位唯一记录，字段差异由 Python 逐项断言，失败信息更容易定位。
+
+## 实际验收结果
+
+- `docker compose config --quiet` 校验通过；
+- MariaDB 保持 healthy，端口为 `127.0.0.1:3307->3306/tcp`，OrangeHRM 正常运行；
+- 宿主机 PyMySQL 实连 MariaDB `10.11.19` 成功，确认 `hs_hr_employee` 的 5 个目标字段；
+- `python -m pytest tests/db -v`：`3 passed`；
+- `python -m pytest tests/api -v`：`8 passed`；
+- `python -m pytest -m smoke -v`：`3 passed`，`9 deselected`；
+- 本地环境执行完整测试集合：`12 passed`。
 
 ---
 

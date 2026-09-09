@@ -152,7 +152,12 @@ def test_delete_employee_and_search_again(employee_api, created_employee):
 
     # Assert｜验证 HTTP 结果和关键业务结果
     assert delete_response.status_code == 200
-    assert str(emp_number) in delete_response.json()["data"]
+    deleted_ids = delete_response.json()["data"]
+    # 官方 Demo 曾返回字符串 ID，本地 5.9 返回整数 ID；先严格确认只删除一条，
+    # 再只接受这两种已确认的表示，避免把其他 JSON 类型误判为同一个主键。
+    assert len(deleted_ids) == 1
+    assert type(deleted_ids[0]) in (int, str)
+    assert deleted_ids[0] in (emp_number, str(emp_number))
 
     # Delete 后再次 Search，确认员工已无法查询，而不是只检查删除状态码。
     search_response = employee_api.search_employee(

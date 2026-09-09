@@ -9,6 +9,8 @@ services:
       MARIADB_USER: ${ORANGEHRM_DB_USER}
       MARIADB_PASSWORD: ${ORANGEHRM_DB_PASSWORD}
       MARIADB_ROOT_PASSWORD: ${ORANGEHRM_DB_ROOT_PASSWORD}
+    ports:
+      - "127.0.0.1:${ORANGEHRM_DB_HOST_PORT:-3307}:3306"
     volumes:
       - orangehrm_db_data:/var/lib/mysql
     healthcheck:

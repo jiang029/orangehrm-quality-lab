@@ -399,7 +399,7 @@ Faker 只提供模拟姓名原料；Factory 负责把姓名、动态 Employee ID
 
 ### 为什么是两个服务、两个 volume
 
-Compose 只管理 OrangeHRM 和 MariaDB 两个服务。OrangeHRM 通过服务名 `db` 和容器端口 `3306` 连接数据库；宿主机只把 `8080` 映射到 Web 容器的 `80`，数据库无需暴露给宿主机。
+Phase 6 收口时，Compose 只管理 OrangeHRM 和 MariaDB 两个服务。OrangeHRM 通过服务名 `db` 和容器端口 `3306` 连接数据库；当时宿主机只把 `8080` 映射到 Web 容器的 `80`，尚未发布数据库端口。
 
 MariaDB 数据放在 `orangehrm_quality_lab_db_data`，因为容器重建不应删除业务数据。OrangeHRM 官方 image 还声明了 `/var/www/html` volume，安装器生成的连接配置也在该目录中，因此使用第二个显式 named volume `orangehrm_quality_lab_app_data`。否则 Docker 会创建匿名 volume，down 后再次 up 不会自动复用原来的安装状态。
 
@@ -430,7 +430,60 @@ docker compose exec orangehrm sh -lc "cd /var/www/html && php installer/console 
 - MariaDB 日志中的 `io_uring` 回退和 Apache 的 `ServerName` 提示是非阻塞警告，healthcheck、数据库 ping、HTTP 和 smoke 均通过；
 - 不带 `-v` 执行 down/up 后，两个 volume 的创建时间不变，MariaDB 日志显示无需重新初始化，OrangeHRM 仍进入登录页；
 - 重启前后本地 smoke 均为 `3 passed`，说明登录、员工创建和查询在本地环境真实可用；
-- 本阶段只确认数据库服务和应用连接，没有查询业务表，也没有编写数据库断言，Phase 7 边界保持不变。
+- Phase 6 收口时只确认数据库服务和应用连接，没有查询业务表，也没有编写数据库断言；这些内容后来在 Phase 7 完成。
+
+---
+
+# 2026-09-09
+
+## 9. API 响应与数据库最终状态校验
+
+### 为什么引入 PyMySQL
+
+Python 标准库没有 MySQL / MariaDB 驱动。本阶段选择 PyMySQL，是因为它可以直接从宿主机建立连接、参数化执行 SQL，并用 `DictCursor` 返回按列名读取的结果。也可以在测试外调用 MariaDB CLI 完成一次性查询，但不便集成到 Pytest 断言；本阶段只有简单 `SELECT`，因此没有引入 SQLAlchemy 或 ORM。
+
+`utils/db.py` 只保留创建连接和 `fetch_one`。cursor 在查询函数的 `with` 中关闭，connection 由 function-scope fixture 在 `yield` 后关闭。数据库名、用户和密码必须来自环境变量，Host / Port 为本地环境提供 `127.0.0.1 / 3307` 默认值。
+
+### 容器连接与宿主机连接是两条链
+
+```text
+OrangeHRM Container → db:3306
+Windows Pytest      → 127.0.0.1:3307 → MariaDB Container:3306
+```
+
+Compose 中增加的数据库端口只绑定 `127.0.0.1`，不会把 MariaDB 发布到所有网卡；OrangeHRM 自身仍使用服务名 `db` 和容器端口 `3306`。`ORANGEHRM_DB_HOST_PORT` 用于 Compose 端口映射，`ORANGEHRM_DB_PORT` 用于 PyMySQL 连接，两者默认都是 `3307`，但不是同一个进程中的配置。
+
+Compose 会读取 `.env` 做变量替换，却不会把变量导出到启动 pytest 的 PowerShell。因此运行 DB tests 前仍需在同一个 PowerShell 中显式设置 API 与数据库环境变量；测试代码不会主动读取 `.env`，也没有为此增加 `python-dotenv`。
+
+### 先核验真实 schema，再写断言
+
+在当前 OrangeHRM 5.9 / MariaDB 10.11.19 中实际确认表 `hs_hr_employee` 存在，相关列为：
+
+- `emp_number int(11) NOT NULL PRIMARY KEY`；
+- `employee_id varchar(50) NULL`；
+- `emp_firstname varchar(100) NOT NULL`；
+- `emp_middle_name varchar(100) NOT NULL`；
+- `emp_lastname varchar(100) NOT NULL`。
+
+自动化查询只用参数化条件 `WHERE emp_number = %s` 定位唯一员工，再由 Python 分别断言 Employee ID 和姓名字段。没有把所有期望值都塞进 `WHERE`，否则查询不到记录时无法分辨是记录不存在，还是某一个字段不一致。
+
+Create / Update / Delete 都先严格验证 API 响应，再执行数据库 `SELECT`：创建后断言行存在且字段一致，修改后断言同一主键的姓名已更新，删除后断言查询返回 `None`。这里的 `SELECT` 就是 Assert；测试数据的业务操作和 cleanup 仍通过现有 `EmployeeAPI`，没有用 SQL `DELETE` 绕过系统行为。
+
+### SQL 基础练习的实际结果
+
+本轮只把业务真正需要的 `SELECT / WHERE` 放入自动化测试。其余语法在同一数据库执行了只读练习：
+
+- `SELECT COUNT(*) FROM hs_hr_employee` 返回 `1`；
+- `SELECT emp_number FROM hs_hr_employee ORDER BY emp_number DESC LIMIT 3` 返回当时唯一的 `emp_number=1`；
+- `hs_hr_employee INNER JOIN ohrm_user ON ohrm_user.emp_number = hs_hr_employee.emp_number` 的关联数量为 `1`；外键元数据也确认了这组关联键。
+
+COUNT 用于聚合记录数量，ORDER BY 用于明确结果顺序，JOIN 用于按已确认的关联键组合两张表。本阶段只验证基本使用，不扩展索引、事务隔离、锁或执行计划。
+
+### 实际问题：删除响应中的 ID 类型因环境不同
+
+官方公共 Demo 之前返回字符串 ID，例如 `['274']`；本地 OrangeHRM 5.9 本轮实际返回整数 ID，例如 `[8]`。原断言只接受字符串，导致首次 DB tests 结果为 `2 passed, 1 failed`，但删除动作本身已经成功，teardown 再次删除得到可接受的 `404`，没有留下测试数据。
+
+最终断言先严格确认响应列表只有一个元素和值类型只能是 `int` 或 `str`，再要求它精确等于 `emp_number` 或对应字符串。这样只兼容已经实际观察到的 JSON 表示差异，不会用宽泛类型转换误接受浮点数等其他值，也不会放宽删除数量或员工身份的判断。修正后 DB tests 为 `3 passed`，完整 API tests 为 `8 passed`，smoke 为 `3 passed, 9 deselected`，本地完整测试集合为 `12 passed`。
 
 ---
 
