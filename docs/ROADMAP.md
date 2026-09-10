@@ -18,7 +18,7 @@
 | Phase 6 | Docker 本地测试环境 | ✅ 已完成 |
 | Phase 7 | MySQL 数据库校验 | ✅ 已完成 |
 | Phase 8 | Playwright UI 自动化 | ✅ 已完成 |
-| Phase 9 | Allure 测试报告 | ⬜ 未开始 |
+| Phase 9 | Allure 测试报告 | ✅ 已完成 |
 | Phase 10 | Git 分支与 Pull Request | ⬜ 未开始 |
 | Phase 11 | GitHub Actions 持续集成 | ⬜ 未开始 |
 | Phase 12 | Codex 代码变更影响分析 | ⬜ 未开始 |
@@ -469,26 +469,42 @@ tests/
 
 ---
 
-# Phase 9｜Allure 测试报告
+# Phase 9｜Allure 测试报告 ✅
 ## 目标
 
 提高测试执行结果和失败信息的可读性。
 
-## 学习内容
-- allure-results
-- allure generate
-- allure serve
-- feature
-- story
-- severity
-- step
-- attachment
+## 已完成实践
 
-## 重点
-Allure 的价值不是单纯“报告漂亮”，而是帮助定位：
-- 哪条用例失败；
-- 哪一步失败；
-- 实际结果是什么。
+- [x] 增加 `allure-pytest==2.16.0`，让 Pytest 执行结果、业务标签、步骤和附件写入 `allure-results/`
+- [x] 确认本机已有可用的 Allure CLI `2.38.1` 和 Java `11.0.2`，没有重复安装系统工具
+- [x] 在 `pytest.ini` 默认配置 `--alluredir=allure-results` 和 `--clean-alluredir`，每次执行只保留当前测试会话的原始结果
+- [x] 使用 Allure CLI 将原始结果生成到 `allure-report/`，并通过本地报告服务实际读取页面
+- [x] 只为 API、DB、UI 各一条代表场景增加业务标签、风险等级和关键步骤，没有机械装饰全部测试
+- [x] 将 Create Employee API 响应和员工数据库实际行作为 JSON 附件
+- [x] 将 pytest-playwright 已有的失败 Screenshot / Trace 附加到对应 Allure 用例，同时继续在 `test-results/` 保留原始产物
+- [x] 确认 `allure-results/`、`allure-report/` 和 `test-results/` 均被 Git 忽略
+
+## 关键设计
+
+- `allure-pytest` 是测试框架适配器，负责把 Pytest 运行过程写成原始结果；Allure CLI 是独立渲染工具，负责把这些结果生成可查看的 HTML 报告；
+- Feature / Story 按业务组织：员工接口创建是 `PIM / Employee Management`，数据库持久化校验是 `PIM / Employee Data Consistency`，管理员 UI 登录是 `Authentication / Administrator Login`；没有使用 API / DB / UI 文件夹名作为业务层级；
+- Severity 按业务失败影响标记：员工创建和数据一致性为 `critical`，阻断所有受保护功能的管理员登录为 `blocker`；
+- Step 只覆盖提交业务动作、核对核心结果等诊断边界，没有把每个请求、fill、click 或单条 assert 拆成步骤；
+- API Response 和 DB Row 直接附为 JSON。UI 失败附件复用 pytest-playwright 的 `output_path`：浏览器上下文 teardown 完成后，再把已落盘的 Screenshot 和 Trace 复制进 Allure；
+- `test-results/` 是 Playwright 原始失败诊断，`allure-results/` 是可重新生成报告的原始 Allure 数据，`allure-report/` 是 CLI 生成的静态网页。Trace 和两类 Allure 目录可能包含业务数据、Cookie 或网络信息，只作为本地临时产物；
+- `--clean-alluredir` 防止不同测试会话的结果混在同一份本地报告中。跨任务历史汇总、CI 安装 CLI、保存和发布报告留到 Phase 11 再设计。
+
+## 实际验收结果
+
+- `python -m pytest tests/api -v`：`8 passed in 3.54s`；
+- `python -m pytest tests/db -v`：`3 passed in 1.73s`；
+- 使用 Chrome channel 执行 UI：`5 passed in 38.55s`；
+- 使用 Chrome channel 执行本地完整集合：`17 passed in 39.84s`；最终 `allure-results/` 恰好包含 `17` 条结果，状态全部为 passed；
+- 临时受控 UI 失败真实生成 `test-failed-1.png` 和 `trace.zip`，两者均成功复制为该失败用例的 Allure attachment；验证后已删除临时用例，完整回归重新清理了失败结果和 Playwright 失败产物；
+- `allure generate allure-results --clean -o allure-report` 返回成功，生成报告摘要为 `17 total / 17 passed`；
+- `allure open -h 127.0.0.1 -p 59032 allure-report` 启动本地报告服务，实际请求首页返回 `HTTP 200`；
+- `pip check` 返回 `No broken requirements found`。
 
 ---
 

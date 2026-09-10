@@ -548,4 +548,55 @@ Employee Id 标签在 OrangeHRM 5.9 中没有提供足够稳定的 label 关联�
 
 ---
 
+## 11. Allure 原始结果、报告渲染与失败附件
+
+### 适配器和 CLI 是两层职责
+
+`allure-pytest` 是 Pytest 插件，它监听测试、fixture、step 和 attachment，把结构化原始数据写入 `allure-results/`。该目录中的 JSON 和附件不是最终网页，但已经包含用例状态、错误、标签和诊断上下文。
+
+Allure CLI 是独立的报告渲染工具，它读取 `allure-results/` 并生成 `allure-report/`。本机已经通过 Scoop 安装 Allure CLI `2.38.1`，Java `11.0.2` 也能正常支持它，因此项目只新增直接 Python 依赖 `allure-pytest==2.16.0`，没有重复安装 CLI，也没有把 CLI 错当成 pip 依赖。
+
+本项目在 `pytest.ini` 中默认使用：
+
+```text
+--alluredir=allure-results
+--clean-alluredir
+```
+
+第二项会在每次测试会话开始时清理旧结果，让当前报告只反映本次执行。如果未来需要合并历史趋势，不能继续简单清理或拼接本地目录，而应在 CI 阶段明确设计结果保存与历史恢复。
+
+### 业务标签不是技术目录
+
+本轮只选择三条代表用例：
+
+- API 员工创建：`PIM / Employee Management / critical`；
+- DB 持久化校验：`PIM / Employee Data Consistency / critical`；
+- UI 管理员登录：`Authentication / Administrator Login / blocker`。
+
+Feature / Story 回答“验证什么业务”，所以没有命名为 API、DB 或 UI。Severity 表达业务失败影响：登录失败会阻断所有受保护功能，因此是 blocker；员工创建和落库一致性影响核心 PIM 数据，因此是 critical。没有标签的其他测试仍会正常进入报告，只是不为了展示功能而机械增加装饰器。
+
+Step 只包住有诊断意义的边界，例如“通过 API 创建员工”“查询数据库最终状态”“确认进入 Dashboard”。如果把每一行 fill、click 和 assert 都包装成 step，报告会变成比源码更难读的操作流水账。
+
+### Attachment 要保存测试真正看到的结果
+
+Create Employee 的实际 Response 和数据库查询得到的实际 Row 以 JSON 附件保存。断言失败时，报告读者可以直接比较服务端或数据库返回值，不必先修改测试代码打印信息。
+
+UI 没有在每个步骤重复截图。pytest-playwright 仍按 Phase 8 的配置，仅在失败时把全页 Screenshot 和 Trace 写入 `test-results/`。UI autouse fixture 不依赖 `page`，会等待浏览器上下文和插件完成 teardown，再从公开的 `output_path` 读取这些已落盘文件，并复制到对应 Allure 用例：截图可直接预览，Trace 作为 zip 下载后可用 Playwright Trace Viewer 打开。原始 `test-results/` 继续保留，两种排查入口互不替代。
+
+这个顺序通过一条临时受控失败真实验证：pytest-playwright 生成了 `test-failed-1.png` 和 `trace.zip`，Allure fixture 结果中同时出现 PNG 与 ZIP 两个 attachment。临时失败用例随后删除，最终完整测试重新执行并清理旧结果，正式测试集保持 `17 passed`。
+
+Trace 可能包含 Cookie、表单输入、DOM 和网络请求；API / DB 附件也可能包含业务数据。因此 `test-results/`、`allure-results/` 和 `allure-report/` 都是被 Git 忽略的本地临时产物，不能直接公开。CI 中是否上传、保留多久、谁能访问，留到 Phase 11 再决定。
+
+### 实际报告链路
+
+```powershell
+.\.venv\Scripts\python.exe -B -m pytest -v --browser-channel chrome
+allure generate allure-results --clean -o allure-report
+allure open allure-report
+```
+
+最终完整运行是 `17 passed in 39.84s`；Allure CLI 成功生成报告，摘要为 `17 total / 17 passed`。使用 `allure open` 启动本地服务后，实际 HTTP 请求返回 `200`，确认生成的不只是目录，而是可以由浏览器加载的报告。
+
+---
+
 

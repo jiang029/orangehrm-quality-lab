@@ -1,3 +1,4 @@
+import allure
 import pytest
 
 from tests.data.employee_data import build_employee_data, load_employee_cases
@@ -8,6 +9,9 @@ from tests.data.employee_data import build_employee_data, load_employee_cases
 EMPLOYEE_CASES = load_employee_cases()
 
 
+@allure.feature("PIM")
+@allure.story("Create Employee")
+@allure.severity(allure.severity_level.CRITICAL)
 @pytest.mark.smoke
 @pytest.mark.regression
 def test_create_employee(employee_api, employee_data):
@@ -18,18 +22,24 @@ def test_create_employee(employee_api, employee_data):
     created_data = {}
 
     try:
-        # Act｜执行当前真正要验证的业务动作
-        # Create 在测试主体内显式发生，因此读代码即可看出本用例验证的动作。
-        create_response = employee_api.create_employee(employee_data)
-        create_response_body = create_response.json()
-        created_data = create_response_body.get("data") or {}
-        emp_number = created_data.get("empNumber")
+        with allure.step("通过 API 创建员工并记录服务端响应"):
+            # Act｜Create 在测试主体内显式发生，因此读代码即可看出本用例验证的动作。
+            create_response = employee_api.create_employee(employee_data)
+            allure.attach(
+                create_response.text,
+                name="Create employee API response",
+                attachment_type=allure.attachment_type.JSON,
+            )
+            create_response_body = create_response.json()
+            created_data = create_response_body.get("data") or {}
+            emp_number = created_data.get("empNumber")
 
-        # Assert｜验证 HTTP 结果和关键业务结果
-        assert create_response.status_code == 200
-        assert created_data["employeeId"] == employee_data["employeeId"]
-        assert created_data["firstName"] == employee_data["firstName"]
-        assert created_data["lastName"] == employee_data["lastName"]
+        with allure.step("验证新员工的核心业务字段"):
+            # Assert｜验证 HTTP 结果和关键业务结果
+            assert create_response.status_code == 200
+            assert created_data["employeeId"] == employee_data["employeeId"]
+            assert created_data["firstName"] == employee_data["firstName"]
+            assert created_data["lastName"] == employee_data["lastName"]
     finally:
         # Cleanup｜Create 成功后必须删除临时员工；finally 保证业务断言失败时也会执行。
         if emp_number is not None:

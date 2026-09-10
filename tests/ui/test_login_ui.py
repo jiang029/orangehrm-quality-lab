@@ -1,24 +1,31 @@
 import re
 
+import allure
 import pytest
 from playwright.sync_api import expect
 
 from pages.login_page import LoginPage
 
 
+@allure.feature("Authentication")
+@allure.story("Administrator Login")
+@allure.severity(allure.severity_level.BLOCKER)
 @pytest.mark.ui
 @pytest.mark.smoke
 def test_login_success(page, ui_settings):
-    # Arrange｜直接打开本地登录页，并用语义化 Locator 找到可交互控件。
-    login_page = LoginPage(page, ui_settings.base_url)
-    login_page.open()
+    with allure.step("打开管理员登录页"):
+        # Arrange｜直接打开本地登录页，并用语义化 Locator 找到可交互控件。
+        login_page = LoginPage(page, ui_settings.base_url)
+        login_page.open()
 
-    # Act｜fill 和 click 会自动等待元素达到可操作状态，不需要固定 sleep。
-    login_page.login(ui_settings.username, ui_settings.password)
+    with allure.step("管理员提交有效凭证"):
+        # Act｜fill 和 click 会自动等待元素达到可操作状态，不需要固定 sleep。
+        login_page.login(ui_settings.username, ui_settings.password)
 
-    # Assert｜同时验证落地 URL 和用户可见的 Dashboard 标题。
-    expect(page).to_have_url(re.compile(r"/dashboard/index/?$"))
-    expect(login_page.dashboard_heading).to_be_visible()
+    with allure.step("确认进入 Dashboard"):
+        # Assert｜同时验证落地 URL 和用户可见的 Dashboard 标题。
+        expect(page).to_have_url(re.compile(r"/dashboard/index/?$"))
+        expect(login_page.dashboard_heading).to_be_visible()
 
 
 @pytest.mark.ui
