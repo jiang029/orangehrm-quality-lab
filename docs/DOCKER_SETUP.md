@@ -120,6 +120,38 @@ $env:ORANGEHRM_PASSWORD = "<本地管理员密码>"
 
 `ORANGEHRM_BASE_URL` 不要添加末尾 `/`。Compose 使用的 `.env` 不会自动进入 pytest 进程，所以这三个变量需要显式设置。
 
+## 运行本地 Playwright UI smoke
+
+先安装 Python 依赖，并确保本机 Chrome 可用：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+Phase 8 本地验收使用已经实际通过的 Chrome channel。设置上节三个 `ORANGEHRM_*` 环境变量后执行：
+
+```powershell
+.\.venv\Scripts\python.exe -B -m pytest tests\ui -m ui -v -p no:cacheprovider --browser-channel chrome
+```
+
+`pytest.ini` 已配置：
+
+```text
+--tracing=retain-on-failure
+--screenshot=only-on-failure
+--full-page-screenshot
+```
+
+失败时，`pytest-playwright` 会在 `test-results/` 下保留全页截图和 `trace.zip`。查看 Trace 的示例命令：
+
+```powershell
+.\.venv\Scripts\python.exe -m playwright show-trace test-results\<case>\trace.zip
+```
+
+`test-results/` 已被 Git 忽略。Trace 可能包含登录输入、Cookie、页面快照和网络请求，只用于本地排查，不能提交或公开。成功用例不会因当前的 failure-only 配置保留这些产物。
+
+Playwright 也支持安装与版本匹配的 bundled Chromium；本地 Phase 8 已使用 Chrome channel 完成稳定性验收，因此没有把浏览器下载作为本阶段收口阻塞项。后续 CI 应在独立环境中显式安装所需浏览器。
+
 ## 从宿主机运行数据库测试
 
 数据库测试只用于本地 OrangeHRM + MariaDB 环境。除了上方三个 API 环境变量，还要在运行测试的同一个 PowerShell 中显式设置数据库连接变量：

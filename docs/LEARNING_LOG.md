@@ -487,4 +487,65 @@ COUNT 用于聚合记录数量，ORDER BY 用于明确结果顺序，JOIN 用于
 
 ---
 
+# 2026-09-10
+
+## 10. Playwright UI smoke、Locator 严格模式与最小 Page Object
+
+### 为什么只保留 5 条 UI smoke
+
+Phase 8 最终覆盖有效登录、错误密码登录、UI 创建员工、UI 查询既有员工和 UI 查询空结果。接口测试仍承担主要业务验证；UI 只确认用户真正依赖的页面入口、输入、提交、跳转和结果展示，没有把已有 Employee API CRUD 机械改写成 UI 用例。
+
+请假状态流转本阶段 deferred。现有文档已经确认完整流程需要独立 ESS 账号、员工与登录用户关联、可用假期类型、足够额度、有效日期、Admin 审批以及 ESS 回查；当前仓库也没有 Leave API 或 fixture。为一个场景临时补齐整套账号、权限和数据体系会显著扩大范围，并降低本轮 smoke 的可解释性和稳定性。
+
+### Page Object 是在重复出现后提取的
+
+第一条有效登录先直接在测试中使用 Locator 跑通。登录动作随后在失败登录和三条员工用例中重复，PIM 的打开列表、按 Employee ID 查询等行为也真实重复后，才提取：
+
+- `LoginPage`：登录页 URL、用户名/密码输入、登录按钮和页面反馈；
+- `EmployeePage`：员工列表、Add Employee、Employee ID 输入、Save / Search 和结果行。
+
+没有增加 `BasePage`、Driver 封装、多层业务服务或通用等待工具。测试仍负责业务断言，Page Object 只负责已重复的页面定位和操作；对员工测试而言，登录属于 Arrange，因此由 function-scope `logged_in_page` fixture 完成。每条测试继续使用 pytest-playwright 独立的 BrowserContext，不共享 Cookie 和页面状态。
+
+### Locator 实际发生的两个问题
+
+第一次同时执行 5 条用例时结果为 `3 passed, 2 failed`。
+
+问题一是页面截图清楚显示按钮文字为 `+ Add`，其 accessible name 还包含图标字符。`get_by_role("button", name="Add", exact=True)` 因精确名称不相等而等待超时。修正为 role + 业务词 `Add`，不依赖图标字符、XPath 或 CSS 位置。
+
+问题二是空查询后页面同时存在两条 `No Records Found`：一条是结果区域中的持久文字，另一条是短暂 toast。Playwright strict mode 不允许一个 Locator 在单元素操作中匹配两个节点，因此原断言立即暴露歧义。最终用持久结果的 `span` 与 toast 的 `p` 区分，并额外断言 table 只剩表头 row、没有员工数据 row；没有用 `first()` 或 `nth()` 掩盖歧义。
+
+Employee Id 标签在 OrangeHRM 5.9 中没有提供足够稳定的 label 关联，因此只在这里使用一次局部 CSS 表单组：先以用户可见的 `Employee Id` 缩小 `.oxd-input-group`，再取组内唯一 textbox。其余主要定位使用 role、placeholder、精确反馈文本和动态 Employee ID。
+
+### 自动等待不是固定等待
+
+`Locator.fill()`、`Locator.click()` 会在动作前等待元素可见、稳定且可操作；`expect(...).to_*` 会对异步页面结果进行 web-first 重试。当前 UI 代码没有 `time.sleep`、`wait_for_timeout`、XPath 或全局索引定位。这样等待的是具体页面条件，而不是假设页面一定在固定秒数内完成。
+
+### Screenshot / Trace 如何帮助排查
+
+`pytest.ini` 配置为只在失败时保留全页 Screenshot 和 Trace。首次失败真实生成了每条失败用例的 `test-failed-1.png` 和 `trace.zip`：截图直接确认 `+ Add` 的页面状态，失败输出中的可访问树确认了两个同文案节点，Trace 则保留完整动作和页面上下文。修正后连续成功运行不会保留失败产物。
+
+`test-results/` 已加入 `.gitignore`。Trace 可能包含登录输入、Cookie、DOM 快照和网络请求，必须按敏感运行产物处理，只在本地排查，不能提交或公开。
+
+失败输出还暴露了另一个安全问题：普通 dict fixture 的 repr 会在 traceback 中展示密码字段。最终使用 dataclass 的 `field(repr=False)` 隐藏密码表示；凭证仍只来自环境变量，没有写入源码。
+
+### Factory / API 如何继续复用
+
+- UI Create 使用现有 `employee_data` Factory 生成动态姓名和 Employee ID，创建动作本身仍在浏览器中执行；
+- teardown 用现有 `EmployeeAPI` 按 Employee ID 查询，并且只删除 Employee ID 精确相等的结果，避免潜在模糊查询误删其他数据；
+- UI Search 直接复用 `created_employee`：API 负责 Arrange 和 cleanup，UI 只负责 Act / Assert。
+
+因此 Phase 8 没有重复建设 UI 专用数据 Factory 或清理接口。
+
+### 实际验收结果
+
+本地实际使用 Chrome channel：
+
+```powershell
+.\.venv\Scripts\python.exe -B -m pytest tests\ui -m ui -v -p no:cacheprovider --browser-channel chrome
+```
+
+连续两轮结果分别为 `5 passed in 38.15s` 和 `5 passed in 36.53s`，未观察到 flaky。随后执行本地 API + DB 关键回归，结果为 `11 passed in 3.75s`；使用同一 Chrome channel 执行本地完整集合，结果为 `17 passed in 37.60s`。`pip check` 返回 `No broken requirements found`。
+
+---
+
 

@@ -17,7 +17,7 @@
 | Phase 5 | 测试数据管理 | ✅ 已完成 |
 | Phase 6 | Docker 本地测试环境 | ✅ 已完成 |
 | Phase 7 | MySQL 数据库校验 | ✅ 已完成 |
-| Phase 8 | Playwright UI 自动化 | ⬜ 未开始 |
+| Phase 8 | Playwright UI 自动化 | ✅ 已完成 |
 | Phase 9 | Allure 测试报告 | ⬜ 未开始 |
 | Phase 10 | Git 分支与 Pull Request | ⬜ 未开始 |
 | Phase 11 | GitHub Actions 持续集成 | ⬜ 未开始 |
@@ -408,34 +408,64 @@ tests/
 
 ---
 
-# Phase 8｜Playwright UI 自动化
+# Phase 8｜Playwright UI 自动化 ✅
 ## 目标
 
 对少量关键业务流程进行 Web UI 冒烟自动化。
 
-## 主要场景
-- 登录
-- 创建员工
-- 查询员工
-- 请假核心流程
+## 已完成场景
+
+- [x] 使用有效管理员凭证登录并进入 Dashboard
+- [x] 使用错误密码登录并显示 `Invalid credentials`
+- [x] 通过 UI 创建动态员工，并在 Personal Details 回显姓名与 Employee ID
+- [x] 通过现有 API fixture 创建员工，再通过 UI 按 Employee ID 查询唯一结果
+- [x] 查询未创建的动态 Employee ID，并显示空结果且无员工数据行
+
+请假核心流程本阶段 deferred。完整状态流转需要新增独立 ESS 账号、登录用户与员工关联、假期类型、假期额度、有效日期以及 Admin 审批后的 ESS 回查；当前仓库没有对应 Leave API / fixture。为了保持 UI smoke 小而稳定，本阶段不为凑数量扩展这些前置。
 
 ## 学习内容
-- Locator
-- 自动等待
-- Screenshot
-- Trace
-- Page Object
 
-## 计划目录
+- [x] Locator
+- [x] Playwright 自动等待与 web-first assertion
+- [x] 失败 Screenshot
+- [x] 失败 Trace
+- [x] 简单 Page Object
+
+## 实际目录
+
 ```text
 pages/
+├── login_page.py
+└── employee_page.py
 
 tests/
 └── ui/
+    ├── conftest.py
+    ├── test_login_ui.py
+    └── test_employee_ui.py
 ```
 
-## 自动化原则
-接口自动化负责主要业务验证，UI 自动化只覆盖核心用户链路。
+## 关键设计
+
+- Locator 优先使用 `get_by_role`、`get_by_placeholder` 和动态业务文本；OrangeHRM 标签未关联 input 时，才按包含 `Employee Id` 的局部表单组缩小范围；没有固定 sleep、XPath 或 `nth()` 定位；
+- 依靠 `fill`、`click` 的 actionability 自动等待，以及 `expect` 的重试等待页面跳转、异步列表和可见反馈；
+- 先以内联 Locator 跑通最小登录和员工链路，确认登录与 PIM 行为真实重复后，才提取 `LoginPage` 和 `EmployeePage`；没有增加 BasePage、多层 driver 或通用框架；
+- UI Create 使用现有 Factory 生成数据，并在 `yield` 后通过现有 Employee API 精确查询和删除；UI Search 直接复用 `created_employee` 完成 API Arrange / Cleanup；
+- `pytest.ini` 配置 `--screenshot=only-on-failure`、`--tracing=retain-on-failure` 和全页截图；失败产物位于 `test-results/` 并被 Git 忽略。Trace 可能包含页面输入、Cookie 和网络信息，只用于本地排查；
+- 本地最终验收使用已经真实通过的系统 Chrome channel：`--browser-channel chrome`。浏览器二进制安装问题不与业务测试结果混为一谈。
+
+## 实际验收结果
+
+- Page Object 重构前基线：`5 passed`；
+- Page Object 重构后：`5 passed`；
+- 最终连续稳定性验证第一轮：`5 passed in 38.15s`；
+- 最终连续稳定性验证第二轮：`5 passed in 36.53s`；
+- 原有 API + DB 关键回归：`11 passed in 3.75s`；
+- 使用 Chrome channel 执行本地完整集合：`17 passed in 37.60s`；
+- 失败 Screenshot / Trace 已在真实 Locator 失败中生成并用于修复，成功运行后按 failure-only 策略不保留产物；
+- 连续两轮 UI 验收未发现 flaky，也未发现跨用例状态污染。
+
+接口自动化继续负责主要业务验证，UI 自动化只覆盖核心用户链路。
 
 ---
 

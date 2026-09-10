@@ -30,7 +30,8 @@
 - [x] Phase 5：测试数据管理
 - [x] Phase 6：Docker 本地测试环境
 - [x] Phase 7：MySQL 数据库校验
-- [ ] 后续阶段：UI 自动化、测试报告与 CI
+- [x] Phase 8：Playwright UI 自动化
+- [ ] 后续阶段：测试报告与 CI
 
 详细计划和状态见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
@@ -59,6 +60,22 @@ GET Search Employee
 
 Postman 中只保存请求结构和非敏感测试逻辑，不应提交账号密码、Cookie、Token 等认证信息。
 
+## Phase 8 实践成果
+
+使用 Python Playwright 与 Pytest 在本地 Docker OrangeHRM 上完成 5 条关键 UI smoke：
+
+- 有效管理员登录进入 Dashboard；
+- 错误密码登录显示明确反馈；
+- 通过 UI 创建动态员工，并在个人详情页校验姓名和 Employee ID；
+- API 创建员工后，通过 UI 按动态 Employee ID 查询唯一结果；
+- 查询不存在的动态 Employee ID，校验空结果和空数据表。
+
+Locator 以 role、placeholder 和动态业务文本为主，依靠 Playwright actionability 与 web-first assertion 自动等待，没有使用固定 sleep、XPath 或全局索引。最小链路跑通并出现重复后，只提取了 `LoginPage` 和 `EmployeePage`；测试数据继续复用现有 Factory / Employee API 做前置与清理。
+
+Pytest 默认只在失败时保留全页 Screenshot 和 Trace，产物位于已被 Git 忽略的 `test-results/`。Trace 可能包含页面输入、Cookie 和网络信息，只用于本地排查，不能提交或公开。本轮最终使用本机 Chrome channel 连续运行两轮，均为 `5 passed`，未发现 flaky；原有 API + DB 关键回归为 `11 passed`，本地完整集合为 `17 passed`。
+
+Leave 状态流转需要独立 ESS 账号、假期类型、额度和 Admin 审批等额外前置，本阶段没有为凑用例数量强行加入。
+
 ## 当前技术栈
 
 已经实践：
@@ -76,10 +93,13 @@ Postman 中只保存请求结构和非敏感测试逻辑，不应提交账号密
 - MariaDB 10.11 本地测试环境
 - PyMySQL
 - API 响应与 MariaDB 最终状态联合断言
+- Python Playwright / pytest-playwright
+- Chrome channel UI 自动化
+- Locator、自动等待、失败 Screenshot / Trace
+- 简单 Page Object
 
 后续按路线逐步引入：
 
-- Playwright
 - Allure
 - GitHub Actions
 

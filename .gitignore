@@ -17,6 +17,7 @@ venv/
 # Test Reports
 allure-results/
 allure-report/
+test-results/
 
 # Logs
 *.log
