@@ -548,4 +548,134 @@ Employee Id 标签在 OrangeHRM 5.9 中没有提供足够稳定的 label 关联�
 
 ---
 
+## 11. Allure 原始结果、报告渲染与失败附件
+
+### 适配器和 CLI 是两层职责
+
+`allure-pytest` 是 Pytest 插件，它监听测试、fixture、step 和 attachment，把结构化原始数据写入 `allure-results/`。该目录中的 JSON 和附件不是最终网页，但已经包含用例状态、错误、标签和诊断上下文。
+
+Allure CLI 是独立的报告渲染工具，它读取 `allure-results/` 并生成 `allure-report/`。本机已经通过 Scoop 安装 Allure CLI `2.38.1`，Java `11.0.2` 也能正常支持它，因此项目只新增直接 Python 依赖 `allure-pytest==2.16.0`，没有重复安装 CLI，也没有把 CLI 错当成 pip 依赖。
+
+本项目在 `pytest.ini` 中默认使用：
+
+```text
+--alluredir=allure-results
+--clean-alluredir
+```
+
+第二项会在每次测试会话开始时清理旧结果，让当前报告只反映本次执行。如果未来需要合并历史趋势，不能继续简单清理或拼接本地目录，而应在 CI 阶段明确设计结果保存与历史恢复。
+
+### 业务标签不是技术目录
+
+本轮只选择三条代表用例：
+
+- API 员工创建：`PIM / Employee Management / critical`；
+- DB 持久化校验：`PIM / Employee Data Consistency / critical`；
+- UI 管理员登录：`Authentication / Administrator Login / blocker`。
+
+Feature / Story 回答“验证什么业务”，所以没有命名为 API、DB 或 UI。Severity 表达业务失败影响：登录失败会阻断所有受保护功能，因此是 blocker；员工创建和落库一致性影响核心 PIM 数据，因此是 critical。没有标签的其他测试仍会正常进入报告，只是不为了展示功能而机械增加装饰器。
+
+Step 只包住有诊断意义的边界，例如“通过 API 创建员工”“查询数据库最终状态”“确认进入 Dashboard”。如果把每一行 fill、click 和 assert 都包装成 step，报告会变成比源码更难读的操作流水账。
+
+### Attachment 要保存测试真正看到的结果
+
+Create Employee 的实际 Response 和数据库查询得到的实际 Row 以 JSON 附件保存。断言失败时，报告读者可以直接比较服务端或数据库返回值，不必先修改测试代码打印信息。
+
+UI 没有在每个步骤重复截图。pytest-playwright 仍按 Phase 8 的配置，仅在失败时把全页 Screenshot 和 Trace 写入 `test-results/`。UI autouse fixture 不依赖 `page`，会等待浏览器上下文和插件完成 teardown，再从公开的 `output_path` 读取这些已落盘文件，并复制到对应 Allure 用例：截图可直接预览，Trace 作为 zip 下载后可用 Playwright Trace Viewer 打开。原始 `test-results/` 继续保留，两种排查入口互不替代。
+
+这个顺序通过一条临时受控失败真实验证：pytest-playwright 生成了 `test-failed-1.png` 和 `trace.zip`，Allure fixture 结果中同时出现 PNG 与 ZIP 两个 attachment。临时失败用例随后删除，最终完整测试重新执行并清理旧结果，正式测试集保持 `17 passed`。
+
+Trace 可能包含 Cookie、表单输入、DOM 和网络请求；API / DB 附件也可能包含业务数据。因此 `test-results/`、`allure-results/` 和 `allure-report/` 都是被 Git 忽略的本地临时产物，不能直接公开。Phase 11 最终只上传已经包含失败附件的 `allure-results/`，并将保留期限制为 3 天；不发布 Pages 或长期报告。
+
+### 实际报告链路
+
+```powershell
+.\.venv\Scripts\python.exe -B -m pytest -v --browser-channel chrome
+allure generate allure-results --clean -o allure-report
+allure open allure-report
+```
+
+最终完整运行是 `17 passed in 39.84s`；Allure CLI 成功生成报告，摘要为 `17 total / 17 passed`。使用 `allure open` 启动本地服务后，实际 HTTP 请求返回 `200`，确认生成的不只是目录，而是可以由浏览器加载的报告。
+
+---
+
+## 12. GitHub Actions 干净 runner 与 OrangeHRM 首次初始化
+
+### 不能把“容器已启动”当成“测试环境已准备好”
+
+GitHub-hosted runner 没有本机已经安装过的 OrangeHRM volumes。`docker compose up` 只能创建 MariaDB 空库并启动 Web 容器；此时 OrangeHRM 返回的仍可能是 installer 页面。若直接运行 pytest，API 登录、数据库 schema 和 UI 入口都不成立。
+
+本项目最终把就绪条件拆成三层：
+
+1. Compose 中的 MariaDB healthcheck 确认数据库已能连接并完成 InnoDB 初始化；
+2. curl 轮询首次 installer 的 HTTP 地址，而不是固定等待若干秒；
+3. 安装后跟随登录请求的重定向，要求最终 URL 为 `/web/index.php/auth/login`，并查询 `hs_hr_employee` 确认业务 schema 已创建。
+
+固定的 `sleep 2` 只作为条件轮询间隔，不是判断服务就绪的依据。
+
+### 新版 console 有选项，不代表命令支持该模式
+
+镜像中的命令帮助会展示 Symfony Console 通用的 `--no-interaction`，但 OrangeHRM 5.9 的 `InstallOnNewDatabaseCommand::execute()` 会在 input 非交互时明确返回：
+
+```text
+Not supported non interactive mode.
+```
+
+因此不能只看 `--help` 就假设 CI 可以使用 `-n`。按提示顺序通过 stdin 或 `expect` 喂答案也会紧耦合问题顺序、隐藏输入和选择项，不适合作为稳定 CI 前置。
+
+### 5.9 固定版本的 YAML 兼容安装路径
+
+镜像还保留已标记 deprecated 的 `installer/cli_install.php`。它读取 `installer/cli_install_config.yaml`，直接调用同一套迁移和配置逻辑，并在成功后删除含明文数据库和管理员密码的配置文件。
+
+本轮没有提交安装配置，而是在 job 内：
+
+- 生成只活到当前 runner 销毁的一次性随机密码；
+- 使用 GitHub masking 避免密码进入日志；
+- 先删除镜像自带的公开示例文件，再通过 `umask 077` 新建临时 YAML，并断言实际 mode 为 `600`；
+- 执行安装并断言 YAML 已被删除；
+- 只在安装、登录 URL 和 schema 都通过后运行测试。
+
+该入口已弃用是明确风险。由于当前 image 固定为 5.9，并且本轮从空环境做了真实验证，现阶段可以作为小而可解释的兼容方案；未来升级 OrangeHRM 时必须重新检查，不能把它当作长期稳定的官方安装 API。
+
+### 全新隔离环境的实际证据
+
+验证使用独立容器、network、数据库 volume、应用 volume 和 `18080 / 13307` 端口，没有读取 `.env`，也没有接触当前本地 OrangeHRM volumes：
+
+- 空 MariaDB 进入 healthy；
+- 首次 installer HTTP 可达；
+- 临时 `cli_install_config.yaml` 创建后的实际 mode 为 `600`；
+- 旧 CLI / YAML 无人工输入完成迁移和配置，并删除临时 YAML；
+- 最终 HTTP URL 为 `/web/index.php/auth/login`；
+- 本轮新建的管理员完成真实 Session 登录；
+- `information_schema` 查询确认 `hs_hr_employee` 存在；
+- Playwright bundled Chromium 单次执行完整测试：`17 passed in 38.17s`，`skipped=0`；
+- `allure-results/` 恰好包含 17 条结果，状态全部为 passed；
+- 验证结束后精确清理本轮临时 Docker 资源。
+
+这证明当前初始化和测试链在本机的全新 Linux containers 上可重复，但不等于 GitHub-hosted Ubuntu 已经通过；远端 action 解析、下载网络、runner 资源和 artifact 上传仍要由 PR 中的真实 Actions run 验收。
+
+### workflow、job、step、uses 与 run 的关系
+
+- workflow 是 `.github/workflows/test.yml` 描述的整条自动验证流程；
+- trigger 决定它在面向 `main` 的 PR 和 `main` push 时启动；
+- job 决定一组 steps 在同一台 runner 中执行，本项目只有一个集成测试 job，避免不同 runner 无法共享容器；
+- runner 是实际执行环境，本项目固定 `ubuntu-24.04`；
+- step 是按顺序执行的单个职责；
+- `uses` 复用 Checkout、Python setup 和 artifact upload action；
+- `run` 执行当前项目自己的 pip、Docker、curl 和 pytest 命令。
+
+PR 是 merge 前门禁，push 只监听 `main` 以验证 merge 后提交，不监听所有 feature push，避免同一变更在 push 和 PR synchronize 上重复执行。
+
+### 防止 skip 形成假绿
+
+API 测试在缺少本地 URL 时可能回退公共 Demo，DB / UI fixture 在缺少环境变量时会 skip。workflow 因此先检查关键变量和 localhost 地址，再为 pytest 生成 JUnit XML，最后解析其中的 skip 计数并要求为 0，同时要求 Allure result 数量等于实际测试数且状态全部 passed。完整测试仍只执行一次，避免 `--clean-alluredir` 把前一批 Allure 结果删除。
+
+### CI artifact 仍需要按敏感数据管理
+
+CI 不安装 Allure CLI，也不发布 Pages，只上传 `allure-results/` 并保留 3 天。现有 UI fixture 会把失败 Screenshot 和 Trace 附入这个目录；Trace 可能包含一次性管理员密码、Cookie、DOM 和网络请求。虽然 runner 销毁后这些凭证不再对应任何存活环境，artifact 仍不应长期保留或公开传播。
+
+使用容器版 actionlint 做本地静态检查时，也没有把整个仓库挂载给 linter，因为工作区存在被 Git 忽略的 `.env`。最终只通过 stdin 传入 `.github/workflows/test.yml` 内容；`actionlint 1.7.12` 检查通过，既验证 Actions 语法和内嵌 shell，也没有扩大本地凭证暴露面。
+
+---
+
 

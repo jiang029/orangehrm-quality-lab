@@ -18,6 +18,7 @@ venv/
 allure-results/
 allure-report/
 test-results/
+pytest-results.xml
 
 # Logs
 *.log

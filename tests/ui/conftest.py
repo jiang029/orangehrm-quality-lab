@@ -1,8 +1,10 @@
 from dataclasses import dataclass, field
 import os
+from pathlib import Path
 import re
 from urllib.parse import urlparse
 
+import allure
 import pytest
 from playwright.sync_api import expect
 
@@ -16,6 +18,44 @@ class UISettings:
     base_url: str
     username: str
     password: str = field(repr=False)
+
+
+PLAYWRIGHT_SCREENSHOT_PATTERN = re.compile(r"^test-failed-\d+\.png$")
+PLAYWRIGHT_TRACE_PATTERN = re.compile(r"^trace(?:-\d+)?\.zip$")
+
+
+@pytest.fixture(autouse=True)
+def attach_playwright_failure_artifacts(request, output_path):
+    """把 pytest-playwright 已落盘的失败产物附到对应 Allure 用例。"""
+
+    # 本 fixture 不依赖 page，因此它晚于浏览器上下文完成 teardown；yield 后，
+    # pytest-playwright 的 failure-only Screenshot / Trace 已写入 output_path。
+    yield
+
+    call_report = getattr(request.node, "rep_call", None)
+    if call_report is not None and not call_report.failed:
+        return
+
+    artifacts_path = Path(output_path)
+    if not artifacts_path.is_dir():
+        return
+
+    # 只识别当前插件已经确认的文件名，不扫描或上传目录中的其他内容。
+    for artifact_path in artifacts_path.iterdir():
+        if PLAYWRIGHT_SCREENSHOT_PATTERN.match(artifact_path.name):
+            allure.attach.file(
+                str(artifact_path),
+                name="Playwright failure screenshot",
+                attachment_type=allure.attachment_type.PNG,
+            )
+        elif PLAYWRIGHT_TRACE_PATTERN.match(artifact_path.name):
+            # Trace 可能包含 Cookie、表单输入和网络数据，只随本地临时报告保存。
+            allure.attach.file(
+                str(artifact_path),
+                name="Playwright failure trace",
+                attachment_type="application/zip",
+                extension="zip",
+            )
 
 
 @pytest.fixture(scope="session")

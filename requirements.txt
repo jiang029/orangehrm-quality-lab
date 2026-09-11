@@ -1,3 +1,4 @@
+allure-pytest==2.16.0
 colorama==0.4.6
 Faker==40.38.0
 iniconfig==2.3.0

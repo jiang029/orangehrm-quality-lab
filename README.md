@@ -31,7 +31,10 @@
 - [x] Phase 6：Docker 本地测试环境
 - [x] Phase 7：MySQL 数据库校验
 - [x] Phase 8：Playwright UI 自动化
-- [ ] 后续阶段：测试报告与 CI
+- [x] Phase 9：Allure 测试报告
+- [ ] Phase 10：Git 分支与 Pull Request（进行中，等待手动 push / PR / CI / merge）
+- [ ] Phase 11：GitHub Actions CI（workflow 已实现并完成本地验证，等待远端运行）
+- [ ] 后续阶段：AI 辅助测试与项目整理
 
 详细计划和状态见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
@@ -76,6 +79,33 @@ Pytest 默认只在失败时保留全页 Screenshot 和 Trace，产物位于已�
 
 Leave 状态流转需要独立 ESS 账号、假期类型、额度和 Admin 审批等额外前置，本阶段没有为凑用例数量强行加入。
 
+## Phase 9 实践成果
+
+使用 `allure-pytest` 把 Pytest 执行过程结构化写入 `allure-results/`，再由本机 Allure CLI 生成 `allure-report/`。Feature / Story 按真实业务组织，只在 API 员工创建、数据库持久化一致性和管理员 UI 登录三条代表场景中增加 Severity 与关键 Step；API Response 和 DB Row 作为 JSON 附件保留实际结果。
+
+pytest-playwright 继续按原配置只在失败时把全页 Screenshot 和 Trace 写入 `test-results/`。一个轻量 UI fixture 会在这些文件落盘后将它们附到对应 Allure 用例；原始诊断不会因报告接入而消失，也没有改变本机 Chrome channel。Trace 与报告可能包含 Cookie、页面输入或业务数据，三个产物目录均已被 Git 忽略，只用于本地排查。
+
+```powershell
+# pytest.ini 已默认生成并清理 allure-results
+.\.venv\Scripts\python.exe -B -m pytest -v --browser-channel chrome
+
+# 原始结果 -> 静态 HTML 报告 -> 本地查看
+allure generate allure-results --clean -o allure-report
+allure open allure-report
+```
+
+最终本地完整回归为 `17 passed`，生成报告摘要同样为 `17 total / 17 passed`，并已通过本地报告服务实际读取页面。Phase 11 的 CI 只短期保存 Allure 原始结果，不安装 CLI，也不发布长期报告站点。
+
+## Phase 11 当前实现
+
+`.github/workflows/test.yml` 面向 `main` 的 Pull Request 执行 merge 前验证，并在 `main` 收到 push 后验证合并结果。一个 `ubuntu-24.04` job 会在同一台干净 runner 上完成 Python 3.12、项目依赖、Playwright bundled Chromium、OrangeHRM 5.9 和 MariaDB 的全部准备，再单次运行完整测试集合。
+
+OrangeHRM 5.9 的新版 console 明确不支持真正的 non-interactive 安装。当前 workflow 使用固定 5.9 image 内仍保留的 YAML 兼容 CLI：每次生成并遮罩仅供当前 runner 使用的随机密码，等待数据库 health 和 installer HTTP 后完成空库迁移，确认临时凭证文件已删除、最终进入登录页且业务 schema 存在。该旧入口已被上游标记 deprecated，升级 OrangeHRM 时必须重新验证，不能假设跨版本兼容。
+
+CI 使用 `--browser chromium`，不会依赖 GitHub runner 或本机 Chrome，也不会改变本地已经验证的 `--browser-channel chrome`。pytest 只运行一次，并通过 JUnit XML 额外要求 `skipped=0`，同时核对 Allure 结果数量与状态，避免环境变量漏配或结果缺失后仍显示绿色。失败时只输出限量容器状态和日志；`allure-results/` 作为 artifact 保留 3 天，不发布 Pages。UI 失败 Trace 已附入 Allure，可能包含输入、Cookie、DOM 和网络信息，仍应按敏感诊断数据管理。
+
+本地已在独立 containers、network、空数据库和独立 volumes 上完成真实验证：临时 installer YAML 创建后的实际 mode 为 `600`，无人工输入初始化成功且配置随后被删除，最终登录 URL、管理员登录和 `hs_hr_employee` schema 均通过，bundled Chromium 完整集合为 `17 passed in 38.17s`、`skipped=0`，Allure 17 条结果全部 passed；`actionlint 1.7.12` 也已通过。PR/push trigger、GitHub-hosted Ubuntu、v7 actions、远端下载和 artifact 上传仍必须等待实际 GitHub Actions run，因此 Phase 10 / 11 尚未完成。
+
 ## 当前技术栈
 
 已经实践：
@@ -97,11 +127,16 @@ Leave 状态流转需要独立 ESS 账号、假期类型、额度和 Admin 审�
 - Chrome channel UI 自动化
 - Locator、自动等待、失败 Screenshot / Trace
 - 简单 Page Object
+- Allure Pytest 适配器与 Allure CLI
+- Feature / Story / Severity / Step / Attachment
 
-后续按路线逐步引入：
+已完成本地实现、等待远端验证：
 
-- Allure
-- GitHub Actions
+- GitHub Actions PR / main push workflow
+- 干净 runner 内的 OrangeHRM + MariaDB 集成测试环境
+- Playwright bundled Chromium 与短期 Allure artifact
+
+后续阶段仍以 [docs/ROADMAP.md](docs/ROADMAP.md) 为准，不把尚未远端执行的 CI 写成已完成成果。
 
 ## 项目文档
 
