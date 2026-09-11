@@ -16,14 +16,14 @@
 | Phase 4 | Pytest 工程化 | ✅ 已完成 |
 | Phase 5 | 测试数据管理 | ✅ 已完成 |
 | Phase 6 | Docker 本地测试环境 | ✅ 已完成 |
-| Phase 7 | MySQL 数据库校验 | ✅ 已完成 |
+| Phase 7 | MariaDB 持久化校验 | ✅ 已完成 |
 | Phase 8 | Playwright UI 自动化 | ✅ 已完成 |
 | Phase 9 | Allure 测试报告 | ✅ 已完成 |
-| Phase 10 | Git 分支与 Pull Request | 🟡 进行中（等待 push / PR / CI / merge） |
-| Phase 11 | GitHub Actions 持续集成 | 🟡 进行中（等待远端 CI 验证） |
-| Phase 12 | Codex 代码变更影响分析 | ⬜ 未开始 |
-| Phase 13 | AI 辅助失败分析（可选） | ⬜ 未开始 |
-| Phase 14 | README 与 GitHub 项目整理 | ⬜ 未开始 |
+| Phase 10 | Git 分支与 Pull Request | ✅ 已完成 |
+| Phase 11 | GitHub Actions 持续集成 | ✅ 已完成 |
+| Phase 12 | Codex 代码变更影响分析 | ✅ 已完成 |
+| Phase 13 | AI 辅助失败分析（可选） | ⬜ 可选 / 未做 |
+| Phase 14 | README 与 GitHub 项目整理 | ✅ 已完成 |
 | Phase 15 | 简历项目经历整理 | ⬜ 未开始 |
 | Phase 16 | 项目面试复盘 | ⬜ 未开始 |
 
@@ -508,10 +508,10 @@ tests/
 
 ---
 
-# Phase 10｜Git 分支与 Pull Request 🚧
+# Phase 10｜Git 分支与 Pull Request ✅
 ## 目标
 
-模拟实际团队 Git 协作流程。
+使用真实 CI 变更完成一次 feature branch → Pull Request → merge 协作流程。
 
 ## 本轮演练
 
@@ -523,20 +523,19 @@ feat/github-actions-ci
 
 Phase 11 的 workflow 与文档修改就是本次 Branch → Pull Request → Merge 的真实变更内容，不额外制造演示提交。
 
-## 当前状态
+## 实际验收结果
 
-- [x] 已在 `feat/github-actions-ci` 分支完成本地实现与验证
-- [ ] 用户本人检查并 commit
-- [ ] 用户本人 push feature branch
-- [ ] 创建 Pull Request，并观察 PR trigger 的 CI
-- [ ] CI 通过后由用户本人 merge
-- [ ] 确认 merge 后 `main` 的 push trigger 再次执行
+- [x] 在 `feat/github-actions-ci` 分支完成实现、本地检查与 commit
+- [x] push feature branch 并创建 [Pull Request #1](https://github.com/jiang029/orangehrm-quality-lab/pull/1)
+- [x] PR trigger 的完整 CI 成功后完成 merge
+- [x] merge commit 为 `060a14d`，本地 `main` 与 `origin/main` 均指向该提交
+- [x] merge 后 `main` push trigger 再次成功
 
-在上述远端协作链完成前，Phase 10 保持进行中。
+这次实践证明了真实的分支、PR、CI、merge 链路；仓库没有证据支持多人 review、branch protection 或审批门禁，因此不作这些扩展描述。
 
 ---
 
-# Phase 11｜GitHub Actions CI 🚧
+# Phase 11｜GitHub Actions CI ✅
 ## 目标
 
 实现代码提交后自动执行测试。
@@ -572,7 +571,7 @@ Push → main ─────────┘        ↓
 | uses | 调用 `checkout`、`setup-python`、`upload-artifact` 这些可复用 action |
 | run | 在 runner 上执行 pip、Playwright、Docker Compose、curl 和 pytest 命令 |
 
-## 已完成的本地实现
+## 已完成实现
 
 - [x] 创建 `.github/workflows/test.yml`
 - [x] PR 只监听目标分支 `main`，用于 merge 前验证
@@ -608,16 +607,16 @@ Push → main ─────────┘        ↓
 - 验证结束后只删除了本次临时 Docker 资源，原有本地 volumes 未受影响；
 - `actionlint 1.7.12` 对 workflow 的 Actions 语法与内嵌 shell 检查通过。
 
-## 等待远端 GitHub Actions 验证
+## 远端实际验收结果
 
-- [ ] PR trigger 在 GitHub 上真实启动
-- [ ] `actions/checkout@v7`、`actions/setup-python@v7`、`actions/upload-artifact@v7` 在 hosted runner 上执行
-- [ ] Ubuntu runner 完成镜像、Python 依赖和 Chromium 下载
-- [ ] Linux runner 从空环境完成 OrangeHRM 初始化及 17 条完整测试
-- [ ] artifact 实际上传，并应用 3 天保留期
-- [ ] merge 后 `main` push trigger 再次通过
+- [x] [PR run `34563046220`](https://github.com/jiang029/orangehrm-quality-lab/actions/runs/34563046220) 在 `feat/github-actions-ci` 上由 `pull_request` 触发并成功
+- [x] [main run `34563486889`](https://github.com/jiang029/orangehrm-quality-lab/actions/runs/34563486889) 在 merge commit `060a14d` 上由 `push` 触发并成功
+- [x] 两次 GitHub-hosted Ubuntu run 均完成镜像、Python 依赖和 Chromium 准备
+- [x] 两次 run 均从空环境初始化 OrangeHRM，并通过完整 17 条测试、零 skip 和 Allure 结果一致性检查
+- [x] 两次 run 均成功上传名为 `allure-results` 的原始结果 artifact，并按 workflow 设置保留 3 天
+- [x] 两次 run 均执行 runner 内 Docker 资源清理
 
-Phase 11 只有远端 workflow 实际成功后才能标记完成。
+远端验收只证明该 workflow 在这两次提交和当时的 hosted runner 环境中成功，不保证外部下载服务或未来依赖版本永远稳定。
 
 ## 已知风险与权衡
 
@@ -641,48 +640,86 @@ CI 的核心不是某一个工具。核心是：代码发生变化以后，自�
 
 ---
 
-# Phase 12｜Codex 代码变更影响分析
+# Phase 12｜Codex 代码变更影响分析 ✅
 ## 目标
 
-实践 AI 辅助测试中的“需求 / 代码变更影响分析”。
+基于真实 Git 历史完成一次可解释、可复现的 AI 辅助代码变更影响分析，输出待测试人员确认的回归建议，并用实际执行结果校验当前消费者集合。
 
-## 流程
-```text
-代码发生修改
-     ↓
-读取 git diff
-     ↓
-分析修改的方法 / 模块
-     ↓
-搜索调用和引用关系
-     ↓
-寻找已有测试
-     ↓
-输出潜在影响范围
-     ↓
-测试人员确认回归范围
+## 真实案例：共享 fixture 路径移动
+
+分析输入是历史 commit `9614e02`。该提交将 `tests/api/conftest.py` 原样移动到 `tests/conftest.py`：
+
+```powershell
+git diff --summary 9614e02^ 9614e02 -- tests/api/conftest.py tests/conftest.py
+git diff --find-renames=100% --stat 9614e02^ 9614e02 -- tests/api/conftest.py tests/conftest.py
 ```
 
-## 项目文件
-```text
-AGENTS.md
+Git 识别为 `100%` rename，文件内容是 `0 insertions / 0 deletions`。变化点不是 fixture 实现，而是 Pytest 按目录向下发现 `conftest.py` 的范围：`login_context`、`employee_api`、`employee_data` 和 `created_employee` 从仅对 API 子树可见，提升为整个 `tests/` 子树可见。
 
+对 `9614e02` 当时的测试树而言，真正新增的行为是 DB 子树可以发现这组 fixture；API 子树在移动前后都可发现它们，UI 当时尚不存在。下方 13 条不是历史提交当时的“受影响测试数”，而是基于当前 HEAD 回答“今天再次修改这组共享 fixture 时，哪些现有消费者需要回归”。
+
+## 引用与影响范围
+
+`rg` 与测试函数参数搜索得到当前 HEAD 的依赖链：
+
+```text
+login_context
+└── employee_api
+    ├── API Employee tests
+    ├── DB Employee tests
+    └── ui_employee_data → UI Create
+
+employee_data → build_employee_data
+├── API / DB Create
+├── UI Missing Search
+└── created_employee
+    ├── API Search / Update / Delete
+    ├── DB Update / Delete
+    └── UI Existing Search
+```
+
+- 当前消费者回归集：API 登录成功 1 条、API Employee 6 条、DB 3 条、UI Employee 3 条，共 13 条；
+- 当前不消费这组 fixture：未认证 API 查询、两条 UI 登录、环境自检，共 4 条；
+- 限定条件：根级 `conftest.py` 的语法或顶层 import 错误会影响整个 `tests/` collection，因此最终仍需要完整回归；
+- 历史边界：`9614e02` 当时直接扩展到 API + 新增 DB，UI 在后续 `a467dc8` 才加入；若当前再次修改这些共享 fixture，影响面已扩展为 API + DB + UI。
+
+## 静态分析不能确认的风险
+
+- Pytest 是否在真实命令中成功发现并注入 fixture；
+- 本地环境变量、Session Cookie、OrangeHRM 与 MariaDB 是否可用；
+- 动态员工数据是否被当前服务接受并正确持久化；
+- UI 页面是否可完成真实创建与查询；
+- `yield` teardown 在真实执行中是否完成清理；
+- 运行时配置、浏览器和外部服务状态是否引入静态搜索不可见的差异。
+
+这些都是风险候选，不能仅靠 diff 宣布 Bug 或确认影响。
+
+## 范围复核与实际验证
+
+依据引用证据和项目测试策略复核后，本次采用 13 条消费者作为建议回归集，并在本地 OrangeHRM + MariaDB + Chrome 环境执行。该选择不是工具自动生成的最终业务范围，未来变更仍需测试人员确认：
+
+```powershell
+.\.venv\Scripts\python.exe -B -m pytest `
+    tests\api\test_auth_api.py::test_login_success `
+    tests\api\test_employee_api.py `
+    tests\db\test_employee_db.py `
+    tests\ui\test_employee_ui.py `
+    -v -p no:cacheprovider --strict-markers --browser-channel chrome
+```
+
+实际结果：`13 passed in 31.63s`。建议范围与真实消费者验证结果一致；这只能确认当前版本和本次环境中的测试结果，不能把静态分析升级为自动决定最终回归范围。
+
+随后执行完整集合，JUnit 记录 `17 tests / 0 failures / 0 errors / 0 skipped`，Allure 同时生成 `17` 条 passed 原始结果，验证根级 `conftest.py` 没有造成其他 collection 级副作用。
+
+## 可复用成果
+
+```text
 skills/
 └── change-impact-analysis/
     └── SKILL.md
 ```
 
-## 原则
-AI 只负责：
-- 检索；
-- 分析；
-- 提示风险。
-
-测试人员负责：
-- 判断业务；
-- 设计测试；
-- 实际验证；
-- 确认 Bug。
+该指南固定的是证据链和人工确认边界，不建设复杂 Agent 平台，也没有为演示制造或保留临时业务代码。
 
 ---
 
@@ -703,20 +740,23 @@ AI 只负责：
 
 ---
 
-# Phase 14｜README 与 GitHub 项目整理
-## 最终 README 计划包含
-- 项目背景
-- 被测系统
-- 技术栈
-- 测试策略
-- 项目目录
-- API 自动化
-- 数据库校验
-- UI 自动化
-- CI
-- AI 辅助测试
-- 项目运行方式
-- 测试报告截图
+# Phase 14｜README 与 GitHub 项目整理 ✅
+
+## 已完成
+
+- [x] README 从阶段流水账调整为招聘者、测试开发面试官和运行者可快速阅读的首页结构
+- [x] 明确 OrangeHRM 5.9、Login / PIM 自动化范围与 17 条测试构成
+- [x] 展示 API、测试数据、Docker、MariaDB、Playwright、Allure、Git / PR、CI 和影响分析链路
+- [x] 同步 PR/main CI 的真实成功状态与短期 Allure 原始 results artifact 边界
+- [x] 明确 Leave 仅完成业务与测试点设计，没有自动化
+- [x] 增加目录结构、本地运行、文档入口和已知限制
+- [x] 删除误跟踪的 `less` 帮助输出文件，不保留临时 controlled diff 或报告产物
+- [x] 不加入无事实支撑的 badge、在线 Allure 站点、企业级或完整覆盖表述
+- [x] 最终完整回归为 17 条全部通过、零 skip，README 内部路径和 change-impact-analysis skill 格式校验通过
+
+## 验收边界
+
+README 只陈述仓库代码、Git 历史、GitHub Actions 运行和本地验证能够支持的事实。Phase 13 optional、Phase 15 简历和 Phase 16 面试复盘仍未实施。
 
 ---
 
