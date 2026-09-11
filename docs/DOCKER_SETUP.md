@@ -78,6 +78,20 @@ http://localhost:8080
 
 正常情况下根地址会跳转到 `/web/index.php/auth/login`，而不是再次进入 `/installer/`。
 
+## CI 中的全新环境初始化
+
+GitHub-hosted runner 每次从没有本项目 volumes 的干净环境开始，不能复用上面的本地安装状态。OrangeHRM 5.9 新版 `installer/console install:on-existing-database` 虽显示 Symfony 通用的 `--no-interaction` 选项，但命令源码会明确拒绝该模式，因此 CI 不使用 `expect`，也不按交互提示顺序输入固定答案。
+
+当前固定的 5.9 image 仍内置已弃用的 `installer/cli_install.php`。它从 `installer/cli_install_config.yaml` 读取数据库、组织和管理员设置，可以无人工输入完成数据库迁移、管理员创建及应用配置写入；成功后会删除这份包含明文凭证的 YAML。`.github/workflows/test.yml` 因此采用以下边界：
+
+- 每次 job 在 runner 内随机生成数据库和管理员密码，先遮罩再写入当前 job 环境；
+- 不复制或读取开发机 `.env`，也不需要 GitHub Repository Secrets；
+- 等 MariaDB health 和 installer HTTP 实际就绪后，先删除镜像自带的公开示例，再以 `0600` 权限新建临时 YAML 并检查实际 mode；
+- 安装命令结束后确认 YAML 已删除，再确认登录地址和业务 schema；
+- job 结束时删除 runner 内的 containers、network 和 volumes。
+
+这条路径已经在独立临时容器、空数据库和独立 volumes 上完成本地真实验证：临时 YAML 创建后的实际 mode 为 `600`，初始化无需人工输入且配置随后被删除，最终 URL 落到 `/web/index.php/auth/login`，新管理员能够登录，`hs_hr_employee` 表存在，bundled Chromium 完整测试为 `17 passed in 38.17s`、`skipped=0`，Allure 17 条结果全部 passed。由于旧 CLI 已被上游标记 deprecated，这个结论只适用于当前固定的 OrangeHRM 5.9；升级 image 时必须重新验证初始化接口，不能默认继续兼容。
+
 ## 状态、日志与停止
 
 ```powershell
@@ -150,7 +164,9 @@ Phase 8 本地验收使用已经实际通过的 Chrome channel。设置上节三
 
 `test-results/` 已被 Git 忽略。Trace 可能包含登录输入、Cookie、页面快照和网络请求，只用于本地排查，不能提交或公开。成功用例不会因当前的 failure-only 配置保留这些产物。
 
-Playwright 也支持安装与版本匹配的 bundled Chromium；本地 Phase 8 已使用 Chrome channel 完成稳定性验收，因此没有把浏览器下载作为本阶段收口阻塞项。后续 CI 应在独立环境中显式安装所需浏览器。
+Playwright 也支持安装与版本匹配的 bundled Chromium；本地 Phase 8 已使用 Chrome channel 完成稳定性验收。Phase 11 的 CI 会在独立 runner 中执行 `python -m playwright install --with-deps chromium`，并通过 `--browser chromium` 运行；这不会改变本地继续使用 `--browser-channel chrome` 的方式。
+
+CI 只上传 `allure-results/`，保留 3 天，不安装 Allure CLI，也不发布 Pages。UI 失败时，现有 fixture 已把 Screenshot 和 Trace 附入 Allure 原始结果；Trace 即使使用一次性 CI 凭证，仍可能包含页面输入、Cookie、DOM 和网络信息，因此 artifact 应按敏感诊断数据限制访问和保留时间。
 
 ## 从宿主机运行数据库测试
 

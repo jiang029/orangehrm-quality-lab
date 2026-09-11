@@ -19,8 +19,8 @@
 | Phase 7 | MySQL 数据库校验 | ✅ 已完成 |
 | Phase 8 | Playwright UI 自动化 | ✅ 已完成 |
 | Phase 9 | Allure 测试报告 | ✅ 已完成 |
-| Phase 10 | Git 分支与 Pull Request | ⬜ 未开始 |
-| Phase 11 | GitHub Actions 持续集成 | ⬜ 未开始 |
+| Phase 10 | Git 分支与 Pull Request | 🟡 进行中（等待 push / PR / CI / merge） |
+| Phase 11 | GitHub Actions 持续集成 | 🟡 进行中（等待远端 CI 验证） |
 | Phase 12 | Codex 代码变更影响分析 | ⬜ 未开始 |
 | Phase 13 | AI 辅助失败分析（可选） | ⬜ 未开始 |
 | Phase 14 | README 与 GitHub 项目整理 | ⬜ 未开始 |
@@ -493,7 +493,7 @@ tests/
 - Step 只覆盖提交业务动作、核对核心结果等诊断边界，没有把每个请求、fill、click 或单条 assert 拆成步骤；
 - API Response 和 DB Row 直接附为 JSON。UI 失败附件复用 pytest-playwright 的 `output_path`：浏览器上下文 teardown 完成后，再把已落盘的 Screenshot 和 Trace 复制进 Allure；
 - `test-results/` 是 Playwright 原始失败诊断，`allure-results/` 是可重新生成报告的原始 Allure 数据，`allure-report/` 是 CLI 生成的静态网页。Trace 和两类 Allure 目录可能包含业务数据、Cookie 或网络信息，只作为本地临时产物；
-- `--clean-alluredir` 防止不同测试会话的结果混在同一份本地报告中。跨任务历史汇总、CI 安装 CLI、保存和发布报告留到 Phase 11 再设计。
+- `--clean-alluredir` 防止不同测试会话的结果混在同一份本地报告中。Phase 11 已选择只保存原始结果 artifact，不在当前阶段安装 Allure CLI、发布 Pages 或维护历史趋势。
 
 ## 实际验收结果
 
@@ -508,51 +508,128 @@ tests/
 
 ---
 
-# Phase 10｜Git 分支与 Pull Request
+# Phase 10｜Git 分支与 Pull Request 🚧
 ## 目标
 
 模拟实际团队 Git 协作流程。
 
-## 计划练习
+## 本轮演练
+
 ```text
 main
- ├── feat/api-tests
- └── feat/ui-tests
+  ↑ Pull Request + CI
+feat/github-actions-ci
 ```
 
-## 学习内容
-- 创建分支
-- 切换分支
-- commit
-- push
-- Pull Request
-- merge
+Phase 11 的 workflow 与文档修改就是本次 Branch → Pull Request → Merge 的真实变更内容，不额外制造演示提交。
+
+## 当前状态
+
+- [x] 已在 `feat/github-actions-ci` 分支完成本地实现与验证
+- [ ] 用户本人检查并 commit
+- [ ] 用户本人 push feature branch
+- [ ] 创建 Pull Request，并观察 PR trigger 的 CI
+- [ ] CI 通过后由用户本人 merge
+- [ ] 确认 merge 后 `main` 的 push trigger 再次执行
+
+在上述远端协作链完成前，Phase 10 保持进行中。
 
 ---
 
-# Phase 11｜GitHub Actions CI
+# Phase 11｜GitHub Actions CI 🚧
 ## 目标
 
 实现代码提交后自动执行测试。
 
-## 流程
+## 当前 CI 架构
+
 ```text
-Push / Pull Request
-        ↓
-GitHub Actions
-        ↓
-Checkout Code
-        ↓
-安装 Python
-        ↓
-安装 requirements
-        ↓
-pytest
-        ↓
-生成测试结果
+Pull Request → main ─┐
+                     ├→ ubuntu-24.04 单一 job
+Push → main ─────────┘        ↓
+                    Checkout + Python 3.12
+                              ↓
+                    requirements + Chromium
+                              ↓
+                    OrangeHRM + MariaDB
+                              ↓
+                    首次初始化与真实就绪检查
+                              ↓
+                    单次执行完整 17 条测试
+                              ↓
+                    短期 artifact + 环境清理
 ```
 
-## 计划文件
+## GitHub Actions 概念在本项目中的对应关系
+
+| 概念 | 本项目中的含义 |
+|---|---|
+| workflow | `.github/workflows/test.yml` 定义的一整套自动验证流程 |
+| trigger | 面向 `main` 的 Pull Request 和 `main` 收到 push 时启动流程 |
+| job | `integration-tests`，在同一台干净 runner 上共享容器和测试产物 |
+| runner | 显式使用 GitHub-hosted `ubuntu-24.04` |
+| step | Checkout、安装依赖、启动服务、初始化、测试、诊断、上传与清理等顺序动作 |
+| uses | 调用 `checkout`、`setup-python`、`upload-artifact` 这些可复用 action |
+| run | 在 runner 上执行 pip、Playwright、Docker Compose、curl 和 pytest 命令 |
+
+## 已完成的本地实现
+
+- [x] 创建 `.github/workflows/test.yml`
+- [x] PR 只监听目标分支 `main`，用于 merge 前验证
+- [x] push 只监听 `main`，用于 merge 后验证，并避免 feature push 与 PR 重复执行
+- [x] 权限缩小为 `contents: read`，Checkout 后不持久化凭证，并且不使用 `pull_request_target`
+- [x] 每次 job 动态生成并遮罩一次性数据库和管理员密码，不读取 `.env`，不依赖 Repository Secrets
+- [x] 使用 MariaDB healthcheck、installer HTTP 和最终登录 URL 判断就绪，固定 sleep 只作为条件轮询间隔
+- [x] 使用 OrangeHRM 5.9 镜像内的 YAML 兼容安装入口完成空数据库初始化，并确认临时明文配置在成功后被删除
+- [x] 显式安装 Playwright bundled Chromium，在 CI 中使用 `--browser chromium`，不改变本地 `--browser-channel chrome`
+- [x] 单次运行完整测试，保留同一会话的全部 `allure-results`
+- [x] 生成 JUnit XML 并额外要求 skip 数为 0，同时核对 Allure 结果数量与状态，防止环境漏配或结果缺失后仍显示绿色
+- [x] 失败时输出限量 Compose 状态与日志，不展开 Compose 配置或环境变量
+- [x] 将 Allure 原始结果保存 3 天；UI 失败截图与 Trace 已由现有 fixture 附入同一结果，取消运行时不继续上传
+- [x] 无论成功失败都删除 runner 内的容器、网络和 volumes
+
+## OrangeHRM 5.9 首次初始化结论
+
+新版 `installer/console install:on-existing-database` 的帮助中虽然存在 Symfony 通用的 `--no-interaction`，但命令实现会明确拒绝非交互模式。CI 没有使用 `expect` 或按提示顺序喂答案。
+
+固定的 5.9 镜像仍保留 `installer/cli_install.php`：它读取 `cli_install_config.yaml`，可在无人工输入时完成迁移、管理员创建和配置写入，并在成功后删除包含明文凭证的 YAML。该入口已被上游标记 deprecated，因此这是当前固定版本的兼容方案，不是可跨版本保证的公共接口；未来升级 OrangeHRM 必须重新验证或替换初始化方式。
+
+## 本地真实验证结果
+
+- 使用与现有本地环境完全不同的容器、网络、volumes 和端口，从空 MariaDB 开始验证；
+- MariaDB health 通过，首次 installer HTTP 可达；
+- 临时 `cli_install_config.yaml` 创建后的实际 mode 为 `600`；
+- 旧 CLI / YAML 在无人工输入下完成初始化并删除临时配置；
+- 最终 URL 为 `/web/index.php/auth/login`，不再进入 installer；
+- 新建管理员完成真实 Session 登录；
+- `hs_hr_employee` 表存在；
+- 使用 Playwright bundled Chromium 单次执行完整集合：`17 passed in 38.17s`，`skipped=0`；
+- `allure-results/` 包含 `17` 条结果，状态全部为 passed；
+- 验证结束后只删除了本次临时 Docker 资源，原有本地 volumes 未受影响；
+- `actionlint 1.7.12` 对 workflow 的 Actions 语法与内嵌 shell 检查通过。
+
+## 等待远端 GitHub Actions 验证
+
+- [ ] PR trigger 在 GitHub 上真实启动
+- [ ] `actions/checkout@v7`、`actions/setup-python@v7`、`actions/upload-artifact@v7` 在 hosted runner 上执行
+- [ ] Ubuntu runner 完成镜像、Python 依赖和 Chromium 下载
+- [ ] Linux runner 从空环境完成 OrangeHRM 初始化及 17 条完整测试
+- [ ] artifact 实际上传，并应用 3 天保留期
+- [ ] merge 后 `main` push trigger 再次通过
+
+Phase 11 只有远端 workflow 实际成功后才能标记完成。
+
+## 已知风险与权衡
+
+- YAML 兼容安装入口已被 OrangeHRM 标记 deprecated；固定 5.9 版本降低了当前变化面，但升级时必须重新验证；
+- Compose image 使用版本 tag 而非 digest，`requirements.txt` 也只固定直接依赖，没有达到镜像 digest + 全量 hash lock 的最高复现级别；
+- GitHub 官方 actions 使用当前 v7 major tag，便于接收同 major 修复，但不如完整 commit SHA 不可变；
+- hosted runner 仍需访问 Docker Hub、PyPI 和 Playwright CDN，外部下载故障会让 CI 失败；
+- Requests 调用尚未逐个设置 timeout，因此 workflow 同时设置 15 分钟测试 step 上限和 30 分钟 job 上限，避免无限占用 runner；
+- CI 只保存可重新渲染的 Allure 原始结果，不额外安装 Java / Allure CLI；代价是 Actions 页面不能直接浏览完整 HTML 报告。
+
+## 项目文件
+
 ```text
 .github/
 └── workflows/

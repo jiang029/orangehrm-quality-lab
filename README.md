@@ -32,7 +32,9 @@
 - [x] Phase 7：MySQL 数据库校验
 - [x] Phase 8：Playwright UI 自动化
 - [x] Phase 9：Allure 测试报告
-- [ ] 后续阶段：Git 协作、CI 与 AI 辅助测试
+- [ ] Phase 10：Git 分支与 Pull Request（进行中，等待手动 push / PR / CI / merge）
+- [ ] Phase 11：GitHub Actions CI（workflow 已实现并完成本地验证，等待远端运行）
+- [ ] 后续阶段：AI 辅助测试与项目整理
 
 详细计划和状态见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
@@ -92,7 +94,17 @@ allure generate allure-results --clean -o allure-report
 allure open allure-report
 ```
 
-最终本地完整回归为 `17 passed`，生成报告摘要同样为 `17 total / 17 passed`，并已通过本地报告服务实际读取页面。CI 中安装 CLI、保存和发布报告留到 Phase 11。
+最终本地完整回归为 `17 passed`，生成报告摘要同样为 `17 total / 17 passed`，并已通过本地报告服务实际读取页面。Phase 11 的 CI 只短期保存 Allure 原始结果，不安装 CLI，也不发布长期报告站点。
+
+## Phase 11 当前实现
+
+`.github/workflows/test.yml` 面向 `main` 的 Pull Request 执行 merge 前验证，并在 `main` 收到 push 后验证合并结果。一个 `ubuntu-24.04` job 会在同一台干净 runner 上完成 Python 3.12、项目依赖、Playwright bundled Chromium、OrangeHRM 5.9 和 MariaDB 的全部准备，再单次运行完整测试集合。
+
+OrangeHRM 5.9 的新版 console 明确不支持真正的 non-interactive 安装。当前 workflow 使用固定 5.9 image 内仍保留的 YAML 兼容 CLI：每次生成并遮罩仅供当前 runner 使用的随机密码，等待数据库 health 和 installer HTTP 后完成空库迁移，确认临时凭证文件已删除、最终进入登录页且业务 schema 存在。该旧入口已被上游标记 deprecated，升级 OrangeHRM 时必须重新验证，不能假设跨版本兼容。
+
+CI 使用 `--browser chromium`，不会依赖 GitHub runner 或本机 Chrome，也不会改变本地已经验证的 `--browser-channel chrome`。pytest 只运行一次，并通过 JUnit XML 额外要求 `skipped=0`，同时核对 Allure 结果数量与状态，避免环境变量漏配或结果缺失后仍显示绿色。失败时只输出限量容器状态和日志；`allure-results/` 作为 artifact 保留 3 天，不发布 Pages。UI 失败 Trace 已附入 Allure，可能包含输入、Cookie、DOM 和网络信息，仍应按敏感诊断数据管理。
+
+本地已在独立 containers、network、空数据库和独立 volumes 上完成真实验证：临时 installer YAML 创建后的实际 mode 为 `600`，无人工输入初始化成功且配置随后被删除，最终登录 URL、管理员登录和 `hs_hr_employee` schema 均通过，bundled Chromium 完整集合为 `17 passed in 38.17s`、`skipped=0`，Allure 17 条结果全部 passed；`actionlint 1.7.12` 也已通过。PR/push trigger、GitHub-hosted Ubuntu、v7 actions、远端下载和 artifact 上传仍必须等待实际 GitHub Actions run，因此 Phase 10 / 11 尚未完成。
 
 ## 当前技术栈
 
@@ -118,9 +130,13 @@ allure open allure-report
 - Allure Pytest 适配器与 Allure CLI
 - Feature / Story / Severity / Step / Attachment
 
-后续按路线逐步引入：
+已完成本地实现、等待远端验证：
 
-- GitHub Actions
+- GitHub Actions PR / main push workflow
+- 干净 runner 内的 OrangeHRM + MariaDB 集成测试环境
+- Playwright bundled Chromium 与短期 Allure artifact
+
+后续阶段仍以 [docs/ROADMAP.md](docs/ROADMAP.md) 为准，不把尚未远端执行的 CI 写成已完成成果。
 
 ## 项目文档
 
