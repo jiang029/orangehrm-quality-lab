@@ -652,7 +652,9 @@ Not supported non interactive mode.
 - `allure-results/` 恰好包含 17 条结果，状态全部为 passed；
 - 验证结束后精确清理本轮临时 Docker 资源。
 
-这证明当前初始化和测试链在本机的全新 Linux containers 上可重复，但不等于 GitHub-hosted Ubuntu 已经通过；远端 action 解析、下载网络、runner 资源和 artifact 上传仍要由 PR 中的真实 Actions run 验收。
+这段结论记录的是 workflow 尚未 push 时的本地证据：它证明初始化和测试链能在本机全新 Linux containers 中重复，但当时还不能代替 GitHub-hosted Ubuntu 的远端验收。
+
+2026-09-11 随后完成了真实远端链路：[PR run `34563046220`](https://github.com/jiang029/orangehrm-quality-lab/actions/runs/34563046220) 和 merge 后的 [main push run `34563486889`](https://github.com/jiang029/orangehrm-quality-lab/actions/runs/34563486889) 均为 success。两次 run 都完成完整测试、零 skip / Allure 一致性检查、原始 `allure-results` artifact 上传和 Docker 资源清理。这说明“本地模拟通过”和“目标 CI 平台通过”是两份不同证据，只有后者发生后才能收口 Phase 11。
 
 ### workflow、job、step、uses 与 run 的关系
 
@@ -675,6 +677,119 @@ API 测试在缺少本地 URL 时可能回退公共 Demo，DB / UI fixture 在�
 CI 不安装 Allure CLI，也不发布 Pages，只上传 `allure-results/` 并保留 3 天。现有 UI fixture 会把失败 Screenshot 和 Trace 附入这个目录；Trace 可能包含一次性管理员密码、Cookie、DOM 和网络请求。虽然 runner 销毁后这些凭证不再对应任何存活环境，artifact 仍不应长期保留或公开传播。
 
 使用容器版 actionlint 做本地静态检查时，也没有把整个仓库挂载给 linter，因为工作区存在被 Git 忽略的 `.env`。最终只通过 stdin 传入 `.github/workflows/test.yml` 内容；`actionlint 1.7.12` 检查通过，既验证 Actions 语法和内嵌 shell，也没有扩大本地凭证暴露面。
+
+---
+
+# 2026-09-11
+
+## 13. Pytest 共享 fixture 路径移动的代码变更影响分析
+
+### 为什么选择这个真实案例
+
+Phase 12 没有制造临时业务代码，而是选择历史 commit `9614e02`。该提交为新增数据库测试，把 `tests/api/conftest.py` 原样移动为 `tests/conftest.py`。这是一次真实、很小且容易低估的变化：实现内容没改，但 Pytest 根据目录查找 `conftest.py`，路径本身会改变 fixture 的可见范围。
+
+```powershell
+git diff --summary 9614e02^ 9614e02 -- tests/api/conftest.py tests/conftest.py
+git diff --find-renames=100% --stat 9614e02^ 9614e02 -- tests/api/conftest.py tests/conftest.py
+```
+
+实际结果是：
+
+```text
+rename tests/{api => }/conftest.py (100%)
+tests/{api => }/conftest.py | 0
+1 file changed, 0 insertions(+), 0 deletions(-)
+```
+
+因此“diff 没有增删行”不等于“没有行为影响”。本次 changed unit 是 fixture discovery scope，而不是某个函数体。
+
+### 如何搜索直接引用和间接依赖
+
+普通 `import` 搜索不足以找到 Pytest fixture 使用者，因为测试通常通过函数参数请求 fixture。本轮组合使用：
+
+```powershell
+git show --stat --oneline 9614e02
+git diff --find-renames=100% 9614e02^ 9614e02 -- tests/api/conftest.py tests/conftest.py
+rg -n --glob "*.py" "login_context|employee_api|employee_data|created_employee|ui_employee_data" .
+```
+
+当前 `tests/conftest.py` 提供四个共享 fixture：
+
+- `login_context`：session-scope 登录与 Session 生命周期；
+- `employee_api`：依赖 `login_context`，提供认证 Employee API Client；
+- `employee_data`：调用 Factory 生成 function-scope 动态输入；
+- `created_employee`：依赖 API 与数据 fixture，负责 Arrange 和 `yield` 后 cleanup。
+
+当前 HEAD 的依赖链为：
+
+```text
+login_context
+└── employee_api
+    ├── API Employee tests
+    ├── DB Employee tests
+    └── ui_employee_data → UI Create cleanup
+
+employee_data → build_employee_data
+├── API / DB Create
+├── UI Missing Search
+└── created_employee
+    ├── API Search / Update / Delete
+    ├── DB Update / Delete
+    └── UI Existing Search
+```
+
+提交发生当时，路径移动让共享 fixture 从 API 扩展到新增 DB 层；UI 是后续 commit `a467dc8` 才加入的消费者。影响分析必须说明所采用的时间视角：本轮分析历史 diff 的变化本质，同时用当前 HEAD 决定今天再次修改这组 fixture 时的回归范围。
+
+### 影响分层与最小合理回归
+
+以当前 HEAD 为时间视角，静态分析建议的消费者回归集共 13 条；这不是对 `9614e02` 提交当时影响数量的追溯统计：
+
+- API 登录成功 1 条：直接消费 `login_context`；
+- API Employee 6 条：消费 `employee_api`、`employee_data` 或 `created_employee`；
+- DB Employee 3 条：消费同一组根级 fixture；
+- UI Employee 3 条：直接消费 `employee_data` / `created_employee`，或经 `ui_employee_data` 间接使用 API cleanup。
+
+未认证 API 查询直接创建无 Cookie 请求，两条 UI 登录只使用 `page` / `ui_settings`，环境自检也不消费这些 fixture，因此它们不属于最小语义消费者集合。不过 `tests/conftest.py` 的语法错误或顶层 import 错误可能让整个测试集合在 collection 阶段失败，所以项目最终验收仍应再跑完整 17 条。
+
+### 静态分析不能确认什么
+
+`git diff` 和 `rg` 只能给出依赖证据，不能确认：
+
+- Pytest 在真实 collection 中是否成功发现并注入 fixture；
+- 环境变量、OrangeHRM 登录和 Session Cookie 是否可用；
+- 动态数据是否被真实接口接受并持久化；
+- UI 是否能完成创建和查询；
+- `yield` teardown 是否在真实执行中正确清理；
+- 浏览器、数据库、网络或运行时配置是否带来静态搜索不可见的差异。
+
+AI 因此只提出影响候选、未受影响理由和 13 条回归建议；是否采用该范围、如何解释运行失败以及是否构成 Bug，仍需结合项目测试策略和执行证据审阅。
+
+### 实际执行、失败分类与最终结果
+
+第一次在受限沙箱内执行员工相关 12 条测试时，API + DB 的 9 条通过，3 条 UI 在 setup 阶段因 Windows named pipe 权限返回 `PermissionError`。错误发生在 Playwright 子进程启动前，不是 OrangeHRM 页面或业务断言失败，因此不能据此宣布 UI Bug。
+
+随后在允许 Playwright 创建本机子进程的环境中，按审阅后的 13 条范围重新执行：
+
+```powershell
+.\.venv\Scripts\python.exe -B -m pytest `
+    tests\api\test_auth_api.py::test_login_success `
+    tests\api\test_employee_api.py `
+    tests\db\test_employee_db.py `
+    tests\ui\test_employee_ui.py `
+    -v -p no:cacheprovider --strict-markers --browser-channel chrome
+```
+
+实际结果为 `13 passed in 31.63s`。测试范围覆盖了静态分析识别的当前直接与间接消费者，执行中没有出现额外失败；它不是历史提交的 before / after 对照证明。
+
+随后执行完整集合验证根级加载的横切风险：JUnit 记录 `17 tests / 0 failures / 0 errors / 0 skipped`，`allure-results/` 同时包含 `17` 条 passed 原始结果。它们只验证当前版本和当前本地环境，不表示 AI 可以自动决定未来每次变更的最终测试范围。
+
+### 我的理解
+
+- 文件路径、配置位置和 fixture 发现范围本身都可能是行为，不能只数 diff 增删行；
+- 引用搜索需要理解框架机制。只搜 import 会漏掉以测试函数参数表达的 Pytest fixture 依赖；
+- 最小回归集应覆盖所有已证实消费者，不等于盲目全量；根级加载副作用等横切风险仍需要完整回归兜底；
+- AI 的价值是加快检索、整理调用链和提示遗漏风险，最终结论仍来自可解释的范围审阅与真实执行；
+- 本轮使用真实历史 diff，没有创建 temporary controlled diff，因此不存在需要恢复的演示业务代码。
 
 ---
 
